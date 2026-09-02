@@ -81,22 +81,39 @@ Results retain their original filenames and are written to a new timestamped
 
 ## Common options
 
-| Option | Description |
-| --- | --- |
-| `-i`, `--input PATTERN` | Quoted input glob; repeat for zip mode |
-| `-o`, `--output FILE\|DIR` | Output file in montage mode or parent directory otherwise |
-| `-e`, `--each` | Process files separately |
-| `-c`, `--crop N` | Crop `N` pixels from every side before resizing |
-| `-ct`, `-cb`, `-cl`, `-cr` | Add side-specific cropping |
-| `-w`, `--width N` | Resize to a maximum width |
-| `-H`, `--height N` | Resize to a maximum height |
-| `-t`, `--tile COLSxROWS` | Set the montage grid; zero means automatic |
-| `-g`, `--gap XxY` | Set horizontal and vertical tile gaps |
-| `-b`, `--border [N]` | Add a border, optionally with a pixel width |
-| `-s`, `--shadow` | Add a drop shadow |
-| `-O`, `--overwrite` | Overwrite an existing montage without prompting |
-| `-v`, `--verbose` | Print processing details |
-| `-h`, `--help` | Show every option and additional examples |
+### Input and output
+
+- `-i`, `--input PATTERN` selects files with a quoted glob. Repeat it to use
+  zip mode.
+- `-o`, `--output FILE|DIR` sets the output file in montage mode or the parent
+  directory in zip and each modes.
+- `-e`, `--each` processes matched files separately instead of creating a
+  montage.
+
+### Sizing and cropping
+
+- `-w`, `--width N` resizes images to a maximum width.
+- `-H`, `--height N` resizes images to a maximum height.
+- `-c`, `--crop N` crops `N` pixels from every side before resizing.
+- `-ct`, `-cb`, `-cl`, and `-cr` add extra cropping to the top, bottom, left,
+  and right sides respectively.
+
+### Montage layout
+
+- `-t`, `--tile COLSxROWS` sets the montage grid. A zero lets ImageMagick
+  determine that dimension automatically.
+- `-g`, `--gap XxY` sets the horizontal and vertical gaps between tiles.
+
+### Appearance
+
+- `-b`, `--border [N]` adds a border, optionally with a pixel width.
+- `-s`, `--shadow` adds a drop shadow.
+
+### Execution controls
+
+- `-O`, `--overwrite` overwrites an existing montage without prompting.
+- `-v`, `--verbose` prints processing details.
+- `-h`, `--help` shows every option and additional examples.
 
 Crop and resize are applied to each input before montaging. Final trimming,
 borders, and shadows are applied afterward. Run `screenshots.sh --help` for the
