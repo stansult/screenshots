@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
 SCRIPT="$SCRIPT_DIR/screenshots.sh"
 WORK_DIR="$(mktemp -d /tmp/screenshots-tests.XXXXXX)"
 REAL_MONTAGE="$(command -v montage || true)"
+TEST_FONT=""
 
 passed=0
 failed=0
@@ -70,21 +71,6 @@ find_font() {
     return 1
 }
 
-setup_montage_wrapper() {
-    local font wrapper_dir
-    font="$(find_font)" || return 1
-    wrapper_dir="$WORK_DIR/bin"
-    mkdir -p "$wrapper_dir"
-    cat > "$wrapper_dir/montage" <<'EOF'
-#!/bin/bash
-exec "$REAL_MONTAGE" -font "$TEST_MONTAGE_FONT" "$@"
-EOF
-    chmod +x "$wrapper_dir/montage"
-    TEST_PATH="$wrapper_dir:$PATH"
-    TEST_MONTAGE_FONT="$font"
-    export REAL_MONTAGE TEST_MONTAGE_FONT
-}
-
 new_case() {
     case_number=$((case_number + 1))
     CASE_DIR="$WORK_DIR/case-$case_number"
@@ -98,14 +84,6 @@ make_image() {
 }
 
 run_script() {
-    (
-        cd "$CASE_DIR" || exit 1
-        PATH="$TEST_PATH" "$SCRIPT" "$@"
-    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
-    RUN_STATUS=$?
-}
-
-run_script_without_wrapper() {
     (
         cd "$CASE_DIR" || exit 1
         "$SCRIPT" "$@"
@@ -219,19 +197,40 @@ test_argument_validation() {
     assert_contains "$CASE_DIR/stderr" 'Unknown option'
 }
 
-test_font_discovery_pending() {
+test_automatic_font_discovery() {
     new_case
     make_image "$CASE_DIR/a.png" 100x80 red
     make_image "$CASE_DIR/b.png" 100x80 blue
-    run_script_without_wrapper -i '*.png' -o grid.png --tile 2x1 -O
-    if [ "$RUN_STATUS" -eq 0 ]; then
-        assert_file "$CASE_DIR/grid.png"
-        return $?
-    fi
-    if grep -Fq 'unable to read font' "$CASE_DIR/stderr"; then
-        return 77
-    fi
-    fail "montage failed for an unexpected reason: $(cat "$CASE_DIR/stderr")"
+    run_script -i '*.png' -o grid.png --tile 2x1 -O
+    assert_status 0 || return 1
+    assert_file "$CASE_DIR/grid.png"
+}
+
+test_explicit_font() {
+    new_case
+    make_image "$CASE_DIR/a.png" 100x80 red
+    make_image "$CASE_DIR/b.png" 100x80 blue
+    run_script -i '*.png' -o grid.png --tile 2x1 --font "$TEST_FONT" -O
+    assert_status 0 || return 1
+    assert_file "$CASE_DIR/grid.png"
+}
+
+test_invalid_font() {
+    new_case
+    make_image "$CASE_DIR/a.png" 100x80 red
+    run_script -i '*.png' --font "$CASE_DIR/missing-font.ttf" -O
+    [ "$RUN_STATUS" -ne 0 ] || fail "invalid font path unexpectedly succeeded"
+    assert_contains "$CASE_DIR/stderr" 'Font file does not exist or is not readable'
+}
+
+test_each_mode_does_not_require_font() {
+    local out_dir
+    new_case
+    make_image "$CASE_DIR/a.png" 100x80 red
+    run_script -i '*.png' --each --font "$CASE_DIR/missing-font.ttf"
+    assert_status 0 || return 1
+    out_dir="$(latest_directory "$CASE_DIR" 'each-*')"
+    assert_file "$out_dir/a.png"
 }
 
 run_test() {
@@ -243,10 +242,6 @@ run_test() {
         0)
             passed=$((passed + 1))
             echo 'PASS'
-            ;;
-        77)
-            skipped=$((skipped + 1))
-            echo 'SKIP (pending automatic font discovery)'
             ;;
         *)
             failed=$((failed + 1))
@@ -263,8 +258,8 @@ if ! command -v magick >/dev/null 2>&1 || [ -z "$REAL_MONTAGE" ]; then
     echo 'ImageMagick commands magick and montage are required.' >&2
     exit 1
 fi
-if ! setup_montage_wrapper; then
-    echo 'No usable system font was found for montage tests.' >&2
+if ! TEST_FONT="$(find_font)"; then
+    echo 'No usable system font was found for explicit-font tests.' >&2
     exit 1
 fi
 
@@ -279,7 +274,10 @@ run_test 'zip mode pairs input sets' test_zip_mode
 run_test 'zip mode rejects unequal sets' test_zip_count_mismatch
 run_test 'output is excluded from input glob' test_output_excluded_from_inputs
 run_test 'invalid arguments are rejected' test_argument_validation
-run_test 'automatic font discovery' test_font_discovery_pending
+run_test 'automatic font discovery' test_automatic_font_discovery
+run_test 'explicit font selection' test_explicit_font
+run_test 'invalid font path is rejected' test_invalid_font
+run_test 'each mode does not require a font' test_each_mode_does_not_require_font
 
 echo
 echo "$passed passed, $failed failed, $skipped skipped"

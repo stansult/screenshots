@@ -61,6 +61,8 @@ in that order):
   --no-trim              Skip final trim (default for each)
   --trim-fuzz N          Fuzz tolerance % for trim (default: 0)
   --shadow-color COLOR   Shadow color (default: gray)
+  --font FILE            [montage/zip only] Font file for ImageMagick.
+                         If omitted, a system font is discovered automatically.
   --border-color COLOR   Border color (default: black)
   -c, --crop N           Crop N pixels off all four sides of each input
                          image, applied before resize (bare -c with no
@@ -145,6 +147,7 @@ crop_right_seen=0; crop_right_val=0
 force_overwrite=false
 verbose=false
 shadow_color="gray"
+font_file=""
 do_border=false
 border_width="1"
 border_color="black"
@@ -177,7 +180,7 @@ fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--border-color|--trim-fuzz)
+        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz)
             if [ $# -lt 2 ]; then
                 echo "Option $1 requires an argument." >&2
                 echo "Run with --help for usage." >&2
@@ -264,6 +267,10 @@ while [ $# -gt 0 ]; do
             ;;
         --shadow-color)
             shadow_color="$2"
+            shift 2
+            ;;
+        --font)
+            font_file="$2"
             shift 2
             ;;
         -b|--border)
@@ -382,6 +389,60 @@ fi
 if ! command -v montage >/dev/null 2>&1; then
     echo "ImageMagick 'montage' not found in PATH." >&2
     exit 1
+fi
+
+# ImageMagick's montage command initializes text rendering even when no labels
+# are requested. Some installations have no registered default font, so pass a
+# real font file explicitly. Prefer fontconfig, then common platform paths, and
+# finally ImageMagick's own registry.
+find_montage_font() {
+    local candidate
+
+    if command -v fc-match >/dev/null 2>&1; then
+        candidate="$(fc-match -f '%{file}\n' sans 2>/dev/null | sed -n '1p')"
+        if [ -n "$candidate" ] && [ -r "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    fi
+
+    for candidate in \
+        /System/Library/Fonts/Helvetica.ttc \
+        /System/Library/Fonts/Supplemental/Arial.ttf \
+        /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf \
+        /usr/share/fonts/dejavu/DejaVuSans.ttf
+    do
+        if [ -r "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    candidate="$(magick -list font 2>/dev/null | sed -n 's/^[[:space:]]*glyphs: //p' | sed -n '1p')"
+    if [ -n "$candidate" ] && [ -r "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    return 1
+}
+
+montage_font=""
+if ! $each_mode; then
+    if [ -n "$font_file" ]; then
+        if [ ! -r "$font_file" ]; then
+            echo "Font file does not exist or is not readable: $font_file" >&2
+            exit 1
+        fi
+        montage_font="$font_file"
+    else
+        if ! montage_font="$(find_montage_font)"; then
+            echo "No usable font found for ImageMagick montage." >&2
+            echo "Install a system font or pass --font /path/to/font." >&2
+            exit 1
+        fi
+    fi
+    log "Montage font: $montage_font"
 fi
 
 if [ -n "$width" ] && ! [[ "$width" =~ ^[0-9]+$ ]]; then
@@ -570,6 +631,7 @@ run_montage_and_finalize() {
     log "Montage: tile=$tile gap=${gap_x}x${gap_y} gravity=$gravity background=$background border=$do_border -> $out_dir_abs/$out_base"
     call_out_tmpdir="$(mktemp -d "$out_tmpdir/m.XXXXXX")"
     montage \
+        -font "$montage_font" \
         -background "$background" \
         -gravity "$gravity" \
         -tile "$tile" \

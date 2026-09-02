@@ -108,6 +108,9 @@ Results retain their original filenames and are written to a new timestamped
 
 - `-b`, `--border [N]` adds a border, optionally with a pixel width.
 - `-s`, `--shadow` adds a drop shadow.
+- `--font FILE` selects the font file used internally by ImageMagick in
+  montage and zip modes. A system font is discovered automatically when this
+  option is omitted.
 
 ### Execution controls
 
@@ -125,12 +128,14 @@ complete option reference.
 
 Some ImageMagick installations have no registered default font. Even a montage
 without visible labels can then fail while ImageMagick initializes text
-rendering. Confirm the problem with:
+rendering. The script works around this by discovering a readable system font
+and passing it to ImageMagick explicitly.
+
+To select a particular font instead:
 
 ```bash
-magick -list font
+screenshots.sh -i "usage/*.png" --font /path/to/font.ttf
 ```
 
-If that produces no font entries, repair the ImageMagick font configuration or
-install a font package recognized by ImageMagick. Automatic font discovery in
-the script is planned as a compatibility improvement.
+If automatic discovery fails, the script exits with instructions to install a
+system font or use `--font`.
