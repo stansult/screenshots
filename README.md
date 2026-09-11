@@ -104,6 +104,21 @@ screenshots.sh -i long-article.png --paginate --paper a4 \
   --margin 40 --overlap 20 -o article.pdf
 ```
 
+Optional print-style headers and footers reserve space inside the fixed-ratio
+page. The header shows the image creation date and time on the left, with
+optional title text on the right. The footer shows `page/total-pages` on the
+right:
+
+```bash
+screenshots.sh -i long-article.png --paginate --header --footer \
+  --header-line --footer-line --title "Article title" -o article.pdf
+```
+
+Creation time is selected from embedded capture metadata, a recognized
+GoFullPage filename timestamp, filesystem creation time, then filesystem
+modification time. The header uses a compact format such as
+`Sep 10, 2026 · 11:52 PM`. Long titles are shortened with an ellipsis.
+
 Use `--output-pages` to create lossless PNG pages instead of a PDF. A fresh
 `pages-<timestamp>` directory is created in the current directory:
 
@@ -112,7 +127,7 @@ screenshots.sh -i long-article.png --paginate \
   --output-pages
 ```
 
-Use `-o` to select an existing parent directory:
+Use `-o` to select a parent directory. It is created when missing:
 
 ```bash
 screenshots.sh -i long-article.png --paginate \
@@ -154,6 +169,13 @@ appearance options cannot be combined with `--paginate`.
 - `--paper SIZE` selects `letter` (default), `a4`, or `legal`.
 - `--margin N` adds `N` white output pixels on every side.
 - `--overlap N` repeats `N` preprocessed source rows between pages.
+- `--header` adds a 6-point creation date/time header.
+- `--footer` adds 6-point `page/total-pages` numbering.
+- `--header-line` adds a thin gray rule below an enabled header.
+- `--footer-line` adds a thin gray rule above an enabled footer.
+- `--title TEXT` adds header-right text and requires `--header`.
+- `--page-font-size N` overrides the 6-point header/footer font size with a
+  positive value below 24 points.
 
 ### Montage layout
 

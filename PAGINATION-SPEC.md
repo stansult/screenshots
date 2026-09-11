@@ -42,8 +42,10 @@ screenshots.sh -i article.png --paginate -ct 120 -cb 80 --width 1600 -o article.
 
 ## New options
 
-`--paper`, `--margin`, `--overlap`, and `--output-pages` are pagination-only
-options. Supplying any of them without `--paginate` is an error.
+`--paper`, `--margin`, `--overlap`, `--output-pages`, `--header`, `--footer`,
+`--header-line`, `--footer-line`, `--title`, and `--page-font-size` are
+pagination-only options. Supplying any of them without `--paginate` is an
+error.
 
 ### `-p`, `--paginate`
 
@@ -88,15 +90,17 @@ The overlap must be smaller than the calculated full-page source slice height.
 
 Write the paginated result as individual PNG files instead of a PDF. Create a
 fresh `pages-<timestamp>` directory in the current directory. If `-o DIR` is
-present, create the timestamped directory inside that existing parent instead.
+present, create the timestamped directory inside that parent instead, creating
+the parent recursively when it does not exist.
 The trailing slash on `DIR` is optional.
 
 The files are named `page-001.png`, `page-002.png`, and so on. Use at least
 three digits and expand the width when the page count exceeds 999. All page
 images have identical pixel dimensions. The final page is padded with white.
 
-In PNG mode, `-o/--output` names an existing writable parent directory and must
-not be a symbolic link. Without `--output-pages`, pagination continues to
+In PNG mode, `-o/--output` names a writable parent directory. Create a missing
+directory recursively; reject an existing symbolic link or non-directory.
+Without `--output-pages`, pagination continues to
 interpret `-o/--output` as a PDF filename. Publish the completed temporary
 directory with one rename only after every page has been generated and
 validated. If the timestamped name already exists, append the first available
@@ -104,6 +108,35 @@ numeric suffix rather than replacing or merging it.
 
 `-O/--overwrite` is invalid with `--output-pages`; version one never replaces
 or merges an existing directory.
+
+### Header and footer options
+
+`--header` reserves a 24-point white band below the top outer margin. It
+renders a 6-point sans-serif creation timestamp at left in a format such as
+`Sep 10, 2026 · 11:52 PM`. Timestamp priority is embedded EXIF capture time,
+a recognized GoFullPage filename timestamp, filesystem creation time, then
+filesystem modification time. Filesystem times use the machine's local time.
+
+`--title TEXT` adds right-aligned literal text to that header and requires
+`--header`. The timestamp has layout priority. Shorten an overflowing title
+with an ellipsis, or omit it if no meaningful text fits; never dynamically
+shrink the font or truncate the timestamp.
+
+`--footer` reserves a matching 24-point white band above the bottom outer
+margin and renders `page/total-pages` at right. Its left side is empty.
+Headers and footers are independently optional and use an automatically
+discovered system sans-serif font. Decoration text has an automatic 12-point
+horizontal inset in addition to `--margin`.
+
+`--page-font-size N` overrides the 6-point decoration font and requires
+`--header` or `--footer`. It accepts a positive numeric point size below 24;
+repeating it is an error.
+
+`--header-line` draws a 0.25-point `#d0d0d0` horizontal rule between an enabled
+header band and the screenshot. `--footer-line` draws the same rule between
+the screenshot and an enabled footer band. Each option requires its matching
+header or footer. Rules are disabled by default and span the same automatic
+12-point horizontal inset as the decoration text.
 
 ## Existing options in pagination mode
 
@@ -148,8 +181,9 @@ error before creating output:
 An option is considered specified even if its supplied value equals the normal
 default. For example, `--paginate --gap 15x15` is still invalid.
 
-Pagination mode requires ImageMagick's `magick` command. It must not require
-the separate `montage` command or font discovery.
+Pagination mode requires ImageMagick's `magick` command. It never requires the
+separate `montage` command. Font discovery is required only when `--header` or
+`--footer` is enabled.
 
 ## Input selection and validation
 
@@ -208,7 +242,9 @@ W  = preprocessed source width in pixels
 H  = preprocessed source height in pixels
 CW = W + 2M                          page canvas width in pixels
 CH = round(CW * PH / PW)             page canvas height in pixels
-S  = CH - 2M                         source rows on a full page
+HB = header band height in pixels, or 0
+FB = footer band height in pixels, or 0
+S  = CH - 2M - HB - FB               source rows on a full page
 O  = overlap in source pixels
 T  = S - O                           source-row advance per page
 ```
@@ -216,6 +252,10 @@ T  = S - O                           source-row advance per page
 `S` and `T` must both be positive integers. The screenshot remains at its
 preprocessed pixel dimensions. Never stretch the image and never crop it
 horizontally as part of pagination.
+
+For enabled decorations, convert the physical layout measurements to pixels
+using the page density: each band is 24 points high and text is inset 12 points
+horizontally beyond `M`.
 
 Page source ranges are half-open intervals:
 
@@ -243,14 +283,14 @@ locale-independent decimal point and must round to the nearest integer.
 ## Raster page construction
 
 Use lossless PNG temporary pages for both output modes. Use the `CW`, `CH`, and
-`S` values calculated above. Place each unscaled source slice at `(M, M)` on an
-opaque white canvas.
+`S` values calculated above. Place each unscaled source slice at `(M, M + HB)`
+on an opaque white canvas.
 
 ```text
 page_width_px  = CW
 page_height_px = CH
 left_px        = M
-top_px         = M
+top_px         = M + HB
 ```
 
 Every full page has exactly `M` pixels of white margin on all four sides. The
@@ -377,7 +417,8 @@ Add tests to the existing test suite for at least these cases:
     canvas dimensions.
 13. The final PNG page is white below its remaining source content.
 14. PNG output creates a fresh timestamped directory in the current directory,
-    or beneath the existing parent selected by `-o`, without merging output.
+    or beneath the parent selected by `-o`, creating that parent recursively
+    when missing and without merging output.
 15. An existing PDF remains unchanged when candidate generation fails.
 16. `-O` atomically replaces an existing PDF after successful validation.
 17. A non-interactive existing-PDF collision without `-O` fails promptly.
@@ -404,7 +445,7 @@ than checking only page counts.
 - landscape orientation
 - custom paper dimensions
 - different margins for individual sides
-- headers, footers, page numbers, watermarks, borders, or shadows
+- watermarks, borders, or shadows
 - transparent PDF pages or configurable margin colors
 - multiple input images or batch PDF production
 - replacing or merging an existing PNG output directory

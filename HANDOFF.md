@@ -65,7 +65,8 @@ screenshots.sh -i long.png -p --output-pages -o exports
 ```
 
 For PNG output, `--output-pages` is a flag without an argument. With that flag,
-`-o` names an existing writable parent directory. A trailing slash is optional.
+`-o` names a writable parent directory and creates it recursively when missing.
+A trailing slash is optional.
 Without `--output-pages`, `-o` must name a `.pdf` file. The former
 `--output-pages DIR` syntax is intentionally rejected.
 
@@ -98,7 +99,7 @@ git diff --check
 The regression result was:
 
 ```text
-27 passed, 0 failed, 0 skipped
+29 passed, 0 failed, 0 skipped
 ```
 
 Tests cover the four output forms, both `exports` and `exports/`, repeated PNG
@@ -110,43 +111,22 @@ ShellCheck reports five warnings in older montage, zip, and each code. They are
 the pre-existing intentional-globbing and arithmetic-style warnings; no new
 pagination warning was introduced.
 
-## Header and footer discussion: not implemented
+## Pagination headers and footers
 
-The current pagination specification explicitly lists headers and footers as
-version-one non-goals. The user has started discussing a possible follow-up,
-but no interface or behavior has been approved and no header/footer code has
-been written.
+Optional print-style headers and footers are implemented. `--header` renders a
+6-point creation timestamp at top left; `--title TEXT` adds right-aligned text
+and requires `--header`. `--footer` renders `page/total-pages` at bottom right.
+Both use separate 24-point white bands inside the fixed-ratio page and outside
+the screenshot slice. Text has an automatic 12-point horizontal inset in
+addition to `--margin`. `--page-font-size N` overrides the 6-point default.
+`--header-line` and `--footer-line` independently add thin gray separator
+rules. Long titles are truncated with an ellipsis while the timestamp remains
+intact.
 
-Points raised so far:
-
-- Header and footer should probably be independently optional.
-- The user may want default content as well as configurable content.
-- The user specifically wants the exact date and time when the screenshot was
-  taken, not the current time or a generic file-modification time.
-- Header/footer rendering needs reserved white space, vertical alignment,
-  horizontal alignment, a font, and a font size.
-- It is undecided whether header/footer bands have automatic internal padding,
-  how they interact with `--margin`, and which customization options should be
-  exposed.
-
-Ideas suggested by the previous assistant, but not approved by the user:
-
-- separate `--header` and `--footer` flags;
-- dedicated white header/footer bands with vertically centered text;
-- an automatically discovered sans-serif font;
-- an automatic size roughly equivalent to 12 points at the calculated PDF
-  density;
-- possible `--font`, `--font-size`, and alignment controls;
-- template fields for filenames, page numbers, and capture time.
-
-Do not treat those ideas as requirements. Continue the design discussion before
-editing files.
-
-The key unresolved issue is capture time. An exact screenshot timestamp is only
-reliable when retained in image metadata or an unambiguous filename convention.
-Filesystem creation or modification times may change when a file is copied,
-downloaded, or converted. Inspect representative source screenshots before
-defining the extraction rule, fallback behavior, or displayed format.
+Timestamp priority is embedded EXIF capture time, a recognized GoFullPage
+filename timestamp, filesystem creation time, then filesystem modification
+time. Filesystem creation and date formatting support macOS and GNU/Linux
+forms, with local timezone display such as `Sep 10, 2026 · 11:52 PM`.
 
 ## Deferred mode-specific help
 

@@ -170,11 +170,13 @@ than copying an older draft of `PAGINATION-SPEC.md`. It contains:
 - the exactly-one-image requirement;
 - default PDF naming;
 - `--output-pages` behavior, including automatic `pages-<timestamp>` folders
-  and `-o DIR` selecting an existing parent directory;
+  and `-o DIR` selecting a parent directory that is created when missing;
 - supported paper sizes and the default;
 - pixel-based uniform margins;
 - optional pixel overlap and its validation;
 - crop and resize preprocessing order;
+- optional 6-point creation-time headers, optional titles, page-count
+  footers, and independent separator rules;
 - raster-only output and the absence of OCR;
 - fixed geometric breaks and final-page white padding;
 - PDF overwrite behavior and PNG-directory collision behavior;

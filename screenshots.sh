@@ -46,6 +46,15 @@ Options:
                          consecutive pages (default: 0)
   --output-pages         [paginate only] Write lossless PNG pages to a new
                          "pages-<timestamp>" directory instead of a PDF
+  --header               [paginate only] Add creation date/time at top left
+  --footer               [paginate only] Add page/total-pages at bottom right
+  --header-line          [paginate only] Add a thin gray rule below header
+  --footer-line          [paginate only] Add a thin gray rule above footer
+  --title TEXT           [paginate only] Add header-right text; requires
+                         --header
+  --page-font-size N     [paginate only] Header/footer font size in PDF
+                         points (default: 6; must be greater than 0 and
+                         less than 24)
   -w, --width N          Resize by max width in pixels (opt-in)
   -H, --height N         Resize by max height in pixels (opt-in)
   -s, --shadow           Add drop shadow
@@ -182,6 +191,14 @@ paper_set=false
 margin_set=false
 overlap_set=false
 output_pages_set=false
+header_set=false
+footer_set=false
+header_line_set=false
+footer_line_set=false
+title=""
+title_set=false
+page_font_size="6"
+page_font_size_set=false
 gap_set=false
 gravity_set=false
 background_set=false
@@ -219,7 +236,7 @@ fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap)
+        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap|--title|--page-font-size)
             if [ $# -lt 2 ]; then
                 echo "Option $1 requires an argument." >&2
                 echo "Run with --help for usage." >&2
@@ -404,6 +421,42 @@ while [ $# -gt 0 ]; do
             output_pages_set=true
             shift
             ;;
+        --header)
+            header_set=true
+            shift
+            ;;
+        --footer)
+            footer_set=true
+            shift
+            ;;
+        --header-line)
+            header_line_set=true
+            shift
+            ;;
+        --footer-line)
+            footer_line_set=true
+            shift
+            ;;
+        --title)
+            if $title_set; then
+                echo "Option --title given more than once." >&2
+                echo "Run with --help for usage." >&2
+                exit 1
+            fi
+            title="$2"
+            title_set=true
+            shift 2
+            ;;
+        --page-font-size)
+            if $page_font_size_set; then
+                echo "Option --page-font-size given more than once." >&2
+                echo "Run with --help for usage." >&2
+                exit 1
+            fi
+            page_font_size="$2"
+            page_font_size_set=true
+            shift 2
+            ;;
         --)
             shift
             break
@@ -446,8 +499,30 @@ elif $zip_mode; then
     mode="zip"
 fi
 
-if ! $paginate_mode && { $paper_set || $margin_set || $overlap_set || $output_pages_set; }; then
-    echo "--paper, --margin, --overlap, and --output-pages require --paginate." >&2
+if ! $paginate_mode && { $paper_set || $margin_set || $overlap_set || $output_pages_set || \
+    $header_set || $footer_set || $header_line_set || $footer_line_set || \
+    $title_set || $page_font_size_set; }; then
+    echo "--paper, --margin, --overlap, --output-pages, --header, --footer, --header-line, --footer-line, --title, and --page-font-size require --paginate." >&2
+    exit 1
+fi
+
+if $title_set && ! $header_set; then
+    echo "--title requires --header." >&2
+    exit 1
+fi
+
+if $header_line_set && ! $header_set; then
+    echo "--header-line requires --header." >&2
+    exit 1
+fi
+
+if $footer_line_set && ! $footer_set; then
+    echo "--footer-line requires --footer." >&2
+    exit 1
+fi
+
+if $page_font_size_set && ! $header_set && ! $footer_set; then
+    echo "--page-font-size requires --header or --footer." >&2
     exit 1
 fi
 
@@ -533,6 +608,7 @@ find_montage_font() {
 }
 
 montage_font=""
+paginate_font=""
 if [ "$mode" = "montage" ] || [ "$mode" = "zip" ]; then
     if [ -n "$font_file" ]; then
         if [ ! -r "$font_file" ]; then
@@ -548,6 +624,15 @@ if [ "$mode" = "montage" ] || [ "$mode" = "zip" ]; then
         fi
     fi
     log "Montage font: $montage_font"
+fi
+
+if $paginate_mode && { $header_set || $footer_set; }; then
+    if ! paginate_font="$(find_montage_font)"; then
+        echo "No usable font found for pagination headers or footers." >&2
+        echo "Install a system sans-serif font." >&2
+        exit 1
+    fi
+    log "Pagination font: $paginate_font"
 fi
 
 if [ -n "$width" ] && ! [[ "$width" =~ ^[0-9]+$ ]]; then
@@ -579,6 +664,11 @@ if $paginate_mode; then
     fi
     margin=$((10#$margin))
     overlap=$((10#$overlap))
+    if ! [[ "$page_font_size" =~ ^[0-9]+(\.[0-9]+)?$ ]] || \
+        ! LC_ALL=C awk -v size="$page_font_size" 'BEGIN { exit !(size > 0 && size < 24) }'; then
+        echo "Invalid --page-font-size value: $page_font_size (expected points greater than 0 and less than 24)" >&2
+        exit 1
+    fi
 fi
 
 if ! [[ "$trim_fuzz" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
@@ -759,15 +849,157 @@ prepare_paginate_source() {
     printf '%s\n' "$working"
 }
 
+format_timestamp_parts() {
+    local year="$1" month="$2" day="$3" hour="$4" minute="$5"
+    local month_name hour_number suffix
+    case "$month" in
+        01) month_name="Jan" ;; 02) month_name="Feb" ;; 03) month_name="Mar" ;;
+        04) month_name="Apr" ;; 05) month_name="May" ;; 06) month_name="Jun" ;;
+        07) month_name="Jul" ;; 08) month_name="Aug" ;; 09) month_name="Sep" ;;
+        10) month_name="Oct" ;; 11) month_name="Nov" ;; 12) month_name="Dec" ;;
+        *) return 1 ;;
+    esac
+    day=$((10#$day))
+    hour_number=$((10#$hour))
+    if [ "$hour_number" -ge 12 ]; then suffix="PM"; else suffix="AM"; fi
+    hour_number=$((hour_number % 12))
+    if [ "$hour_number" -eq 0 ]; then hour_number=12; fi
+    printf '%s %d, %s · %d:%s %s\n' "$month_name" "$day" "$year" \
+        "$hour_number" "$minute" "$suffix"
+}
+
+format_epoch_local() {
+    local epoch="$1" parts
+    if parts="$(date -r "$epoch" '+%Y %m %d %H %M' 2>/dev/null)"; then
+        :
+    elif parts="$(date -d "@$epoch" '+%Y %m %d %H %M' 2>/dev/null)"; then
+        :
+    else
+        return 1
+    fi
+    # Intentional splitting of five numeric date fields.
+    # shellcheck disable=SC2086
+    format_timestamp_parts $parts
+}
+
+filesystem_epoch() {
+    local source="$1" epoch=""
+    epoch="$(stat -f '%B' "$source" 2>/dev/null || true)"
+    if ! [[ "$epoch" =~ ^[1-9][0-9]*$ ]]; then
+        epoch="$(stat -c '%W' "$source" 2>/dev/null || true)"
+    fi
+    if ! [[ "$epoch" =~ ^[1-9][0-9]*$ ]]; then
+        epoch="$(stat -f '%m' "$source" 2>/dev/null || true)"
+    fi
+    if ! [[ "$epoch" =~ ^[1-9][0-9]*$ ]]; then
+        epoch="$(stat -c '%Y' "$source" 2>/dev/null || true)"
+    fi
+    [[ "$epoch" =~ ^[1-9][0-9]*$ ]] || return 1
+    printf '%s\n' "$epoch"
+}
+
+creation_timestamp() {
+    local source="$1" embedded base epoch
+    embedded="$(magick identify -quiet -format '%[EXIF:DateTimeOriginal]' \
+        "${source}[0]" 2>/dev/null || true)"
+    if [[ "$embedded" =~ ^([0-9]{4}):([0-9]{2}):([0-9]{2})[[:space:]]+([0-9]{2}):([0-9]{2}):[0-9]{2} ]]; then
+        format_timestamp_parts "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" \
+            "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
+        return
+    fi
+    base="$(basename "$source")"
+    if [[ "$base" =~ ^screencapture-.*-([0-9]{4})-([0-9]{2})-([0-9]{2})-([0-9]{2})_([0-9]{2})_([0-9]{2})(\.[pP][nN][gG])?$ ]]; then
+        format_timestamp_parts "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" \
+            "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}"
+        return
+    fi
+    epoch="$(filesystem_epoch "$source")" || return 1
+    format_epoch_local "$epoch"
+}
+
+render_text_label() {
+    local text="$1" destination="$2" density="$3"
+    magick -background none -fill black -font "$paginate_font" \
+        -pointsize "$page_font_size" -units PixelsPerInch -density "$density" \
+        "label:$text" "$destination"
+}
+
+render_fitted_title() {
+    local text="$1" destination="$2" density="$3" max_width="$4"
+    local candidate length dimensions candidate_width
+    [ -n "$text" ] && [ "$max_width" -gt 0 ] || return 1
+    candidate="$text"
+    length=${#candidate}
+    while [ "$length" -gt 0 ]; do
+        render_text_label "$candidate" "$destination" "$density" || return 1
+        dimensions="$(get_pixel_size "$destination")"
+        candidate_width="${dimensions%%x*}"
+        if [ "$candidate_width" -le "$max_width" ]; then return 0; fi
+        length=$((length - 1))
+        candidate="${text:0:length}…"
+    done
+    rm -f "$destination"
+    return 1
+}
+
 render_page_png() {
     local source="$1" destination="$2" source_width="$3"
     local source_start="$4" source_height="$5" canvas_width="$6"
     local canvas_height="$7" page_margin="$8" density="$9"
+    local header_height="${10}" footer_height="${11}" created_text="${12}"
+    local page_label="${13}" page_title="${14}" labels_dir="${15}"
+    local decoration_inset="${16}" decoration_left decoration_right
+    local rule_width="${17}" rule_y
+    local content_top label dimensions label_width label_height label_x label_y
+    local title_label title_max title_gap
 
-    magick -size "${canvas_width}x${canvas_height}" xc:white \
+    content_top=$((page_margin + header_height))
+    decoration_left=$((page_margin + decoration_inset))
+    decoration_right=$((canvas_width - page_margin - decoration_inset))
+    magick -units PixelsPerInch -density "$density" \
+        -size "${canvas_width}x${canvas_height}" xc:white \
         \( "$source" -crop "${source_width}x${source_height}+0+${source_start}" +repage \) \
-        -geometry "+${page_margin}+${page_margin}" -composite \
-        -units PixelsPerInch -density "$density" "$destination"
+        -geometry "+${page_margin}+${content_top}" -composite "$destination"
+
+    if $header_line_set; then
+        rule_y=$((content_top - 1))
+        magick "$destination" -stroke '#d0d0d0' -strokewidth "$rule_width" \
+            -draw "line ${decoration_left},${rule_y} ${decoration_right},${rule_y}" \
+            "$destination"
+    fi
+    if $footer_line_set; then
+        rule_y=$((canvas_height - page_margin - footer_height))
+        magick "$destination" -stroke '#d0d0d0' -strokewidth "$rule_width" \
+            -draw "line ${decoration_left},${rule_y} ${decoration_right},${rule_y}" \
+            "$destination"
+    fi
+
+    if [ "$header_height" -gt 0 ]; then
+        label="$labels_dir/header-date.png"
+        render_text_label "$created_text" "$label" "$density"
+        dimensions="$(get_pixel_size "$label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
+        label_y=$((page_margin + (header_height - label_height) / 2))
+        magick "$destination" "$label" -geometry "+${decoration_left}+${label_y}" -composite "$destination"
+        if [ -n "$page_title" ]; then
+            title_gap=$((label_height > 0 ? label_height : 1))
+            title_max=$((decoration_right - decoration_left - label_width - title_gap))
+            title_label="$labels_dir/header-title.png"
+            if render_fitted_title "$page_title" "$title_label" "$density" "$title_max"; then
+                dimensions="$(get_pixel_size "$title_label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
+                label_x=$((decoration_right - label_width))
+                label_y=$((page_margin + (header_height - label_height) / 2))
+                magick "$destination" "$title_label" -geometry "+${label_x}+${label_y}" -composite "$destination"
+            fi
+        fi
+    fi
+    if [ "$footer_height" -gt 0 ]; then
+        label="$labels_dir/footer-page.png"
+        render_text_label "$page_label" "$label" "$density"
+        dimensions="$(get_pixel_size "$label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
+        label_x=$((decoration_right - label_width))
+        label_y=$((canvas_height - page_margin - footer_height + (footer_height - label_height) / 2))
+        magick "$destination" "$label" -geometry "+${label_x}+${label_y}" -composite "$destination"
+    fi
 }
 
 validate_generated_pages() {
@@ -828,6 +1060,7 @@ run_paginate() {
     local saved_ifs
     local dimensions source_width source_height paper_width paper_height
     local canvas_width canvas_height slice_height advance page_count density
+    local header_height=0 footer_height=0 created_text="" decoration_height decoration_inset rule_width
     local page_digits page_number start end current_height page_path
     local destination destination_dir destination_base destination_dir_abs out_parent_dir timestamp
     local staging candidate choice
@@ -872,9 +1105,30 @@ run_paginate() {
     canvas_width=$((source_width + 2 * margin))
     canvas_height="$(LC_ALL=C awk -v width="$canvas_width" -v pw="$paper_width" \
         -v ph="$paper_height" 'BEGIN { printf "%d", (width * ph / pw) + 0.5 }')"
-    slice_height=$((canvas_height - 2 * margin))
+    density="$(LC_ALL=C awk -v width="$canvas_width" -v height="$canvas_height" \
+        -v pw="$paper_width" -v ph="$paper_height" \
+        'BEGIN { printf "%.8fx%.8f", 72 * width / pw, 72 * height / ph }')"
+    decoration_height="$(LC_ALL=C awk -v height="$canvas_height" -v ph="$paper_height" \
+        'BEGIN { printf "%d", (24 * height / ph) + 0.5 }')"
+    decoration_inset="$(LC_ALL=C awk -v width="$canvas_width" -v pw="$paper_width" \
+        'BEGIN { printf "%d", (12 * width / pw) + 0.5 }')"
+    rule_width="$(LC_ALL=C awk -v width="$canvas_width" -v pw="$paper_width" \
+        'BEGIN { printf "%.4f", 0.25 * width / pw }')"
+    if $header_set; then
+        header_height="$decoration_height"
+        if ! created_text="$(creation_timestamp "$source")"; then
+            echo "Could not determine a creation time for pagination header: $source" >&2
+            return 1
+        fi
+    fi
+    if $footer_set; then footer_height="$decoration_height"; fi
+    if { $header_set || $footer_set; } && [ "$decoration_height" -lt 3 ]; then
+        echo "Page dimensions are too small to render the requested header or footer." >&2
+        return 1
+    fi
+    slice_height=$((canvas_height - 2 * margin - header_height - footer_height))
     if [ "$slice_height" -le 0 ]; then
-        echo "--margin leaves no usable page height." >&2
+        echo "Margins and header/footer bands leave no usable screenshot area." >&2
         return 1
     fi
     if [ "$overlap" -ge "$slice_height" ]; then
@@ -887,9 +1141,6 @@ run_paginate() {
     else
         page_count=$((1 + (source_height - slice_height + advance - 1) / advance))
     fi
-    density="$(LC_ALL=C awk -v width="$canvas_width" -v height="$canvas_height" \
-        -v pw="$paper_width" -v ph="$paper_height" \
-        'BEGIN { printf "%.8fx%.8f", 72 * width / pw, 72 * height / ph }')"
     page_digits=${#page_count}
     if [ "$page_digits" -lt 3 ]; then
         page_digits=3
@@ -897,6 +1148,7 @@ run_paginate() {
 
     log "Paginate: paper=$paper margin=${margin}px source=${source_width}x${source_height}"
     log "Paginate: canvas=${canvas_width}x${canvas_height} slice=${slice_height}px overlap=${overlap}px pages=$page_count"
+    log "Paginate: header=${header_height}px footer=${footer_height}px font=${page_font_size}pt inset=${decoration_inset}px lines=${header_line_set}/${footer_line_set} created='${created_text}'"
 
     if $output_pages_set; then
         if $output_set; then
@@ -904,8 +1156,15 @@ run_paginate() {
         else
             out_parent_dir="."
         fi
+        if [ ! -e "$out_parent_dir" ] && [ ! -L "$out_parent_dir" ]; then
+            if ! mkdir -p "$out_parent_dir"; then
+                echo "Could not create PNG page output parent directory: $out_parent_dir" >&2
+                return 1
+            fi
+            log "Created PNG page output parent: $out_parent_dir"
+        fi
         if [ ! -d "$out_parent_dir" ] || [ -L "$out_parent_dir" ] || [ ! -w "$out_parent_dir" ]; then
-            echo "PNG page output parent must be an existing writable directory: $out_parent_dir" >&2
+            echo "PNG page output parent must be a writable directory and not a symbolic link: $out_parent_dir" >&2
             return 1
         fi
         destination_dir_abs="$(cd "$out_parent_dir" && pwd -P)"
@@ -989,7 +1248,10 @@ run_paginate() {
         page_path="$(printf "%s/page-%0*d.png" "$staging" "$page_digits" "$page_number")"
         log "Page $page_number: source rows [$start,$end)"
         render_page_png "$prepared" "$page_path" "$source_width" "$start" \
-            "$current_height" "$canvas_width" "$canvas_height" "$margin" "$density"
+            "$current_height" "$canvas_width" "$canvas_height" "$margin" "$density" \
+            "$header_height" "$footer_height" "$created_text" \
+            "${page_number}/${page_count}" "$title" "$paginate_work" \
+            "$decoration_inset" "$rule_width"
         pages+=("$page_path")
         if [ "$end" -eq "$source_height" ]; then
             break

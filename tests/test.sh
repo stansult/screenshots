@@ -64,6 +64,14 @@ assert_pixel_rgb() {
     [ "$actual" = "$expected" ] || fail "expected $file pixel $coordinate to be $expected, got $actual"
 }
 
+assert_region_not_white() {
+    local file="$1" geometry="$2" mean
+    mean="$(magick "$file" -crop "$geometry" +repage -colorspace gray \
+        -format '%[fx:mean]' info:)"
+    awk -v mean="$mean" 'BEGIN { exit !(mean < 0.99999) }' || \
+        fail "expected non-white content in $file region $geometry"
+}
+
 find_font() {
     local font
     if command -v fc-match >/dev/null 2>&1; then
@@ -333,6 +341,60 @@ test_paginate_default_pdf_name() {
     assert_file "$CASE_DIR/article.pdf"
 }
 
+test_paginate_header_footer_layout() {
+    local pages_dir count
+    new_case
+    make_image "$CASE_DIR/screencapture-example-2026-09-10-23_52_17.png" 600x1501 white
+    run_script -i 'screencapture-example-2026-09-10-23_52_17.png' --paginate \
+        --output-pages --margin 20 --header --header-line --footer --footer-line \
+        --title 'Example title' \
+        --page-font-size 6 -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" "created='Sep 10, 2026 · 11:52 PM'" || return 1
+    pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
+    assert_dimensions "$pages_dir/page-001.png" 640x828 || return 1
+    count="$(find "$pages_dir" -maxdepth 1 -type f -name 'page-*.png' | wc -l | tr -d ' ')"
+    [ "$count" -eq 3 ] || fail "expected header/footer bands to produce 3 pages, got $count" || return 1
+    assert_contains "$CASE_DIR/stderr" 'font=6pt' || return 1
+    assert_region_not_white "$pages_dir/page-001.png" '600x25+20+20' || return 1
+    assert_region_not_white "$pages_dir/page-001.png" '600x25+20+783' || return 1
+    assert_region_not_white "$pages_dir/page-001.png" '1x1+320+44' || return 1
+    assert_region_not_white "$pages_dir/page-001.png" '1x1+320+783'
+}
+
+test_paginate_header_footer_options() {
+    new_case
+    make_image "$CASE_DIR/a.png" 600x500 white
+
+    run_script -i a.png --paginate --output-pages --title 'No header'
+    [ "$RUN_STATUS" -ne 0 ] || fail '--title without --header unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" '--title requires --header' || return 1
+
+    run_script -i a.png --header -o out.png
+    [ "$RUN_STATUS" -ne 0 ] || fail '--header without --paginate unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" 'require --paginate' || return 1
+
+    run_script -i a.png --paginate --header --title one --title two --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'repeated --title unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" 'given more than once' || return 1
+
+    run_script -i a.png --paginate --page-font-size 6 --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail '--page-font-size without decoration unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" 'requires --header or --footer' || return 1
+
+    run_script -i a.png --paginate --header --page-font-size 0 --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'zero --page-font-size unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" 'Invalid --page-font-size' || return 1
+
+    run_script -i a.png --paginate --header-line --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail '--header-line without --header unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" '--header-line requires --header' || return 1
+
+    run_script -i a.png --paginate --footer-line --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail '--footer-line without --footer unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" '--footer-line requires --footer'
+}
+
 test_paginate_rejects_invalid_combinations() {
     new_case
     make_image "$CASE_DIR/a.png" 100x100 red
@@ -354,10 +416,6 @@ test_paginate_rejects_invalid_combinations() {
     [ "$RUN_STATUS" -ne 0 ] || fail 'PDF output without a .pdf extension unexpectedly succeeded'
     assert_contains "$CASE_DIR/stderr" 'must have a .pdf extension' || return 1
 
-    run_script -i a.png --paginate --output-pages -o missing-parent
-    [ "$RUN_STATUS" -ne 0 ] || fail 'missing PNG parent directory unexpectedly succeeded'
-    assert_contains "$CASE_DIR/stderr" 'existing writable directory' || return 1
-
     run_script -i a.png --paginate --output-pages legacy-pages
     [ "$RUN_STATUS" -ne 0 ] || fail 'legacy --output-pages DIR syntax unexpectedly succeeded'
     assert_contains "$CASE_DIR/stderr" 'Unexpected extra arguments' || return 1
@@ -368,7 +426,7 @@ test_paginate_rejects_invalid_combinations() {
 }
 
 test_paginate_uses_output_parent_directory() {
-    local page_dirs=()
+    local page_dirs=() created_dir
     new_case
     make_image "$CASE_DIR/a.png" 100x100 red
     mkdir "$CASE_DIR/exports"
@@ -379,7 +437,17 @@ test_paginate_uses_output_parent_directory() {
     page_dirs=("$CASE_DIR"/exports/pages-*)
     [ ${#page_dirs[@]} -eq 2 ] || fail 'expected two fresh PNG page directories' || return 1
     assert_file "${page_dirs[0]}/page-001.png" || return 1
-    assert_file "${page_dirs[1]}/page-001.png"
+    assert_file "${page_dirs[1]}/page-001.png" || return 1
+
+    run_script -i a.png --paginate --output-pages -o new/nested
+    assert_status 0 || return 1
+    created_dir="$(latest_directory "$CASE_DIR/new/nested" 'pages-*')"
+    assert_file "$created_dir/page-001.png" || return 1
+
+    ln -s "$CASE_DIR/exports" "$CASE_DIR/exports-link"
+    run_script -i a.png --paginate --output-pages -o exports-link
+    [ "$RUN_STATUS" -ne 0 ] || fail 'symlink PNG parent unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" 'not a symbolic link'
 }
 
 test_paginate_preserves_existing_pdf_without_overwrite() {
@@ -522,6 +590,8 @@ run_test 'paginate overlap repeats source rows' test_paginate_overlap
 run_test 'paginate preprocesses before geometry' test_paginate_preprocesses_before_geometry
 run_test 'paginate creates A4 PDF' test_paginate_pdf_a4
 run_test 'paginate derives default PDF name' test_paginate_default_pdf_name
+run_test 'paginate renders header and footer' test_paginate_header_footer_layout
+run_test 'paginate validates header/footer options' test_paginate_header_footer_options
 run_test 'paginate rejects invalid combinations' test_paginate_rejects_invalid_combinations
 run_test 'paginate uses output parent directory' test_paginate_uses_output_parent_directory
 run_test 'paginate preserves existing PDF' test_paginate_preserves_existing_pdf_without_overwrite
