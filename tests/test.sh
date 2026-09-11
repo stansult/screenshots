@@ -45,6 +45,11 @@ assert_contains() {
     grep -Fq -- "$text" "$file" || fail "expected '$text' in $file"
 }
 
+assert_not_contains() {
+    local file="$1" text="$2"
+    ! grep -Fq -- "$text" "$file" || fail "did not expect '$text' in $file"
+}
+
 assert_dimensions() {
     local file="$1" expected="$2" actual
     actual="$(magick identify -format '%wx%h' "${file}[0]")"
@@ -245,6 +250,159 @@ test_argument_validation() {
     assert_contains "$CASE_DIR/stderr" 'Unknown option'
 }
 
+test_general_help() {
+    local short_help
+    new_case
+    run_script -h
+    assert_status 0 || return 1
+    short_help="$(cat "$CASE_DIR/stdout")"
+    run_script --help
+    assert_status 0 || return 1
+    [ "$short_help" = "$(cat "$CASE_DIR/stdout")" ] || fail '-h and --help differ' || return 1
+    for text in 'montage' 'zip' 'each' 'paginate' \
+        '--help montage' '--help zip' '--help each' '--help paginate'; do
+        assert_contains "$CASE_DIR/stdout" "$text" || return 1
+    done
+    assert_not_contains "$CASE_DIR/stdout" 'ceil((H - S)' || return 1
+    assert_not_contains "$CASE_DIR/stdout" 'No usable font found'
+}
+
+test_mode_help_pages() {
+    local topic other long_help selector_help
+    new_case
+    for topic in montage zip each paginate; do
+        run_script --help "$topic"
+        assert_status 0 || return 1
+        long_help="$(cat "$CASE_DIR/stdout")"
+        assert_contains "$CASE_DIR/stdout" "$(printf '%s' "$topic" | awk '{ print toupper(substr($0,1,1)) substr($0,2) }') mode" || return 1
+        for other in montage zip each paginate; do
+            [ "$other" = "$topic" ] && continue
+            assert_not_contains "$CASE_DIR/stdout" "$(printf '%s' "$other" | awk '{ print toupper(substr($0,1,1)) substr($0,2) }') mode" || return 1
+        done
+        run_script -h "$topic"
+        assert_status 0 || return 1
+        [ "$long_help" = "$(cat "$CASE_DIR/stdout")" ] || fail "-h and --help differ for $topic" || return 1
+    done
+
+    run_script --each --help
+    assert_status 0 || return 1
+    selector_help="$(cat "$CASE_DIR/stdout")"
+    assert_contains "$CASE_DIR/stdout" 'Each mode' || return 1
+    run_script --help --each
+    assert_status 0 || return 1
+    [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'each help differs by option order' || return 1
+    run_script --each -h
+    assert_status 0 || return 1
+    [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'each help differs for -h' || return 1
+    run_script -h --each
+    assert_status 0 || return 1
+    [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'each help differs for leading -h' || return 1
+    run_script --paginate --help
+    assert_status 0 || return 1
+    selector_help="$(cat "$CASE_DIR/stdout")"
+    assert_contains "$CASE_DIR/stdout" 'Paginate mode' || return 1
+    run_script --help --paginate
+    assert_status 0 || return 1
+    [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'paginate help differs by option order' || return 1
+    run_script --paginate -h
+    assert_status 0 || return 1
+    [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'paginate help differs for -h' || return 1
+    run_script -h --paginate
+    assert_status 0 || return 1
+    [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'paginate help differs for leading -h'
+}
+
+test_invalid_help_requests() {
+    local long_error
+    new_case
+    run_script --help unknown
+    assert_status 1 || return 1
+    long_error="$(cat "$CASE_DIR/stderr")"
+    assert_contains "$CASE_DIR/stderr" 'Accepted help topics' || return 1
+    run_script -h unknown
+    assert_status 1 || return 1
+    [ "$long_error" = "$(cat "$CASE_DIR/stderr")" ] || fail 'unknown-topic errors differ for -h and --help' || return 1
+
+    run_script --paginate --help each
+    assert_status 1 || return 1
+    long_error="$(cat "$CASE_DIR/stderr")"
+    assert_contains "$CASE_DIR/stderr" 'conflicts' || return 1
+    run_script --paginate -h each
+    assert_status 1 || return 1
+    [ "$long_error" = "$(cat "$CASE_DIR/stderr")" ] || fail 'conflict errors differ for -h and --help' || return 1
+
+    run_script --each --paginate --help
+    assert_status 1 || return 1
+    assert_contains "$CASE_DIR/stderr" 'cannot both' || return 1
+
+    run_script --help --help
+    assert_status 1 || return 1
+    assert_contains "$CASE_DIR/stderr" 'only once' || return 1
+
+    run_script --help paginate extra
+    assert_status 1 || return 1
+    long_error="$(cat "$CASE_DIR/stderr")"
+    assert_contains "$CASE_DIR/stderr" 'Unexpected extra argument' || return 1
+    run_script -h paginate extra
+    assert_status 1 || return 1
+    [ "$long_error" = "$(cat "$CASE_DIR/stderr")" ] || fail 'extra-argument errors differ for -h and --help'
+}
+
+test_help_precedes_validation_and_dependencies() {
+    new_case
+    run_script --width nope --help paginate
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'Paginate mode' || return 1
+    run_script --width --help paginate
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'Paginate mode' || return 1
+    run_script_with_path '/bin:/usr/bin' -h
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --help
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --help montage
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --help zip
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --help each
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --help paginate
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' -h montage
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' -h zip
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' -h each
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' -h paginate
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --each --help
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --paginate --help
+    assert_status 0
+}
+
+test_help_creates_no_outputs() {
+    local unexpected
+    new_case
+    run_script --help
+    assert_status 0 || return 1
+    run_script --help montage
+    assert_status 0 || return 1
+    run_script --help zip
+    assert_status 0 || return 1
+    run_script --help each
+    assert_status 0 || return 1
+    run_script --help paginate
+    assert_status 0 || return 1
+    run_script --each --help
+    assert_status 0 || return 1
+    run_script --paginate --help
+    assert_status 0 || return 1
+    unexpected="$(find "$CASE_DIR" -mindepth 1 ! -name stdout ! -name stderr -print)"
+    [ -z "$unexpected" ] || fail "help created unexpected paths: $unexpected"
+}
+
 test_automatic_font_discovery() {
     new_case
     make_image "$CASE_DIR/a.png" 100x80 red
@@ -438,6 +596,18 @@ test_paginate_header_footer_options() {
     [ "$RUN_STATUS" -ne 0 ] || fail '--page-font-size without decoration unexpectedly succeeded'
     assert_contains "$CASE_DIR/stderr" 'requires --header or --footer' || return 1
 
+    run_script -i a.png --paginate --font "$TEST_FONT" --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail '--font without decoration unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" '--font requires --header or --footer' || return 1
+
+    run_script -i a.png --paginate --header --font "$CASE_DIR/missing.ttf" --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'missing pagination font unexpectedly succeeded'
+    assert_contains "$CASE_DIR/stderr" 'Font file does not exist or is not readable' || return 1
+
+    run_script -i a.png --paginate --header --font "$TEST_FONT" --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" "Pagination font: $TEST_FONT" || return 1
+
     run_script -i a.png --paginate --header --page-font-size 0 --output-pages
     [ "$RUN_STATUS" -ne 0 ] || fail 'zero --page-font-size unexpectedly succeeded'
     assert_contains "$CASE_DIR/stderr" 'Invalid --page-font-size' || return 1
@@ -473,13 +643,19 @@ test_paginate_timestamp_priority() {
     mkdir "$fake_bin"
     {
         printf '#!/bin/bash\n'
+        # The dollar expressions below belong in the generated script.
+        # shellcheck disable=SC2016
         printf 'if [ "$1" = "-f" ] && [ "$2" = "%%B" ]; then exit 1; fi\n'
+        # shellcheck disable=SC2016
         printf 'if [ "$1" = "-c" ] && [ "$2" = "%%W" ]; then echo 1577934240; exit 0; fi\n'
         printf 'exec %q "$@"\n' "$REAL_STAT"
     } >"$fake_bin/stat"
     {
         printf '#!/bin/bash\n'
+        # The dollar expressions below belong in the generated script.
+        # shellcheck disable=SC2016
         printf 'if [ "$1" = "-r" ]; then exit 1; fi\n'
+        # shellcheck disable=SC2016
         printf 'if [ "$1" = "-d" ]; then echo "2020 01 02 03 04"; exit 0; fi\n'
         printf 'exec %q "$@"\n' "$REAL_DATE"
     } >"$fake_bin/date"
@@ -493,7 +669,10 @@ test_paginate_timestamp_priority() {
 
 test_paginate_page_number_width_logic() {
     local page_count page_digits
+    # These literal strings assert the production implementation shape.
+    # shellcheck disable=SC2016
     assert_contains "$SCRIPT" 'page_digits=${#page_count}' || return 1
+    # shellcheck disable=SC2016
     assert_contains "$SCRIPT" 'if [ "$page_digits" -lt 3 ]' || return 1
     page_count=1000
     page_digits=${#page_count}
@@ -562,7 +741,6 @@ test_paginate_rejects_every_incompatible_option() {
     assert_paginate_option_rejected '--shadow-color' --shadow-color gray || return 1
     assert_paginate_option_rejected '--border' --border || return 1
     assert_paginate_option_rejected '--border-color' --border-color black || return 1
-    assert_paginate_option_rejected '--font' --font missing.ttf
 }
 
 test_paginate_uses_output_parent_directory() {
@@ -726,6 +904,11 @@ run_test 'zip mode pairs input sets' test_zip_mode
 run_test 'zip mode rejects unequal sets' test_zip_count_mismatch
 run_test 'output is excluded from input glob' test_output_excluded_from_inputs
 run_test 'invalid arguments are rejected' test_argument_validation
+run_test 'general help is concise and complete' test_general_help
+run_test 'mode help selects requested page' test_mode_help_pages
+run_test 'invalid help requests are rejected' test_invalid_help_requests
+run_test 'help precedes validation and dependencies' test_help_precedes_validation_and_dependencies
+run_test 'help creates no outputs' test_help_creates_no_outputs
 run_test 'automatic font discovery' test_automatic_font_discovery
 run_test 'explicit font selection' test_explicit_font
 run_test 'invalid font path is rejected' test_invalid_font

@@ -8,8 +8,10 @@ screenshot into page-sized PDF or PNG output.
 ## Requirements
 
 - Bash 3.2 or newer
-- [ImageMagick](https://imagemagick.org/) with the `magick` and `montage`
-  commands available on `PATH`
+- [ImageMagick](https://imagemagick.org/) with `magick` on `PATH`
+- The separate ImageMagick `montage` command for montage and zip modes
+- A discoverable system font for montage and zip modes, and for pagination
+  when a header or footer is enabled
 
 On macOS with Homebrew:
 
@@ -43,10 +45,24 @@ screenshots.sh -i IMAGE --paginate --output-pages [-o DIR]   # PNG pages
 Always quote input patterns so the script, rather than the calling shell,
 expands them.
 
+Use the short general help for discovery, or open a complete mode reference:
+
+```bash
+screenshots.sh --help
+screenshots.sh --help montage
+screenshots.sh --help zip
+screenshots.sh --help each
+screenshots.sh --help paginate
+```
+
+`-h` is an exact alias for `--help`, including topic forms such as
+`screenshots.sh -h paginate`.
+
 ### Montage mode
 
-One input pattern produces a single grid image. The default output is
-`output.png`.
+One input pattern produces a single grid image. Matches are pathname-sorted.
+The default output is `output.png`; when the output itself matches the input
+pattern, it is excluded from the inputs.
 
 ```bash
 screenshots.sh -i "usage*.png" -o usage-grid.png
@@ -57,8 +73,9 @@ screenshots.sh -i "*.png" --tile 5x0 --gap 20x20
 ### Zip mode
 
 Two or more input patterns enable zip mode. Each pattern is independently
-sorted, then files at matching positions are placed together in a montage.
-Every pattern must match the same number of files.
+sorted bytewise, then files at matching positions are placed together in a
+montage. Every pattern must match the same number of files, and pattern order
+determines the left-to-right order within each montage.
 
 ```bash
 screenshots.sh \
@@ -68,7 +85,8 @@ screenshots.sh \
 ```
 
 Results are written as `1.png`, `2.png`, and so on in a new timestamped
-`zip-*` directory.
+`zip-*` directory. Its default tile layout is `Nx1` for N patterns. An explicit
+tile layout overrides that default, but its column count is capped at N.
 
 ### Each mode
 
@@ -142,65 +160,132 @@ Existing crop and resize options work in paginate mode. Auto-orientation,
 cropping, and resizing happen before margins and page slicing. Montage and
 appearance options cannot be combined with `--paginate`.
 
-## Common options
+## Option reference
+
+The mode-specific help pages are the authoritative command-line reference.
+This section summarizes every public option and the important compatibility
+rules.
+
+| Option group | Montage | Zip | Each | Paginate |
+| --- | :---: | :---: | :---: | :---: |
+| Crop and resize | Yes | Yes | Yes | Yes |
+| Tile, gap, gravity, background | Yes | Yes | Ignored | Rejected |
+| Trim, border, shadow | Yes | Yes | Yes | Rejected |
+| `--font` | Yes | Yes | Ignored | Header/footer |
+| Pagination options | Rejected | Rejected | Rejected | Yes |
+| `-O`, `--overwrite` | Yes | No effect | No effect | PDF only |
+
+Supplying two or more `-i` patterns selects zip mode. `--each` requires exactly
+one input pattern. `--paginate` requires exactly one input occurrence resolving
+to one readable, regular, non-symlink, single-frame raster image.
 
 ### Input and output
 
 - `-i`, `--input PATTERN` selects files with a quoted glob. Repeat it to use
   zip mode.
-- `-o`, `--output FILE|DIR` sets the output file in montage mode or the parent
-  directory in zip and each modes.
+- `-o`, `--output FILE|DIR` has mode-specific meaning: montage output file;
+  zip/each parent directory; pagination PDF filename; or PNG parent directory
+  with `--output-pages`. It must be a literal path and cannot be repeated.
 - `-e`, `--each` processes matched files separately instead of creating a
   montage.
 - `-p`, `--paginate` slices exactly one long image into pages.
 - `--output-pages` writes PNG pages to a fresh `pages-<timestamp>` directory
-  instead of a PDF. With this option, `-o DIR` selects its parent directory.
+  instead of a PDF. With this option, `-o DIR` selects its parent directory,
+  which is created recursively when missing.
 
 ### Sizing and cropping
 
-- `-w`, `--width N` resizes images to a maximum width.
-- `-H`, `--height N` resizes images to a maximum height.
-- `-c`, `--crop N` crops `N` pixels from every side before resizing.
-- `-ct`, `-cb`, `-cl`, and `-cr` add extra cropping to the top, bottom, left,
-  and right sides respectively.
+- `-w`, `--width N` shrinks images to a maximum pixel width; omitted by
+  default. It preserves aspect ratio and never enlarges.
+- `-H`, `--height N` similarly sets an optional maximum pixel height. Width
+  and height may be combined as a bounding box.
+- `-c`, `--crop [N]` crops `N` pixels from every side before resizing.
+- `-ct`/`--crop-top`, `-cb`/`--crop-bottom`, `-cl`/`--crop-left`, and
+  `-cr`/`--crop-right` optionally add side-specific crop amounts. A bare crop
+  flag or zero has no effect. Repeating the same crop flag causes that flag to
+  be ignored with a notice.
 
 ### Pagination
 
 - `--paper SIZE` selects `letter` (default), `a4`, or `legal`.
-- `--margin N` adds `N` white output pixels on every side.
-- `--overlap N` repeats `N` preprocessed source rows between pages.
+- `--margin N` adds `N` white output pixels on every side (default: `0`).
+- `--overlap N` repeats `N` preprocessed source rows between pages (default:
+  `0`); it must be smaller than the calculated slice height.
 - `--header` adds a 6-point creation date/time header.
 - `--footer` adds 6-point `page/total-pages` numbering.
-- `--header-line` adds a thin gray rule below an enabled header.
-- `--footer-line` adds a thin gray rule above an enabled footer.
+- `--header-line` adds a 0.25-point `#d0d0d0` rule below an enabled header.
+- `--footer-line` adds the same rule above an enabled footer.
 - `--title TEXT` adds header-right text and requires `--header`.
 - `--page-font-size N` overrides the 6-point header/footer font size with a
-  positive value below 24 points.
+  positive value below 24 points and requires `--header` or `--footer`.
+- `--font FILE` selects the visible header/footer font and requires `--header`
+  or `--footer`; a system font is discovered automatically when omitted.
+
+Headers and footers use 24-point bands and a 12-point horizontal text inset.
+These reserved bands and the outer margin remain inside the selected paper
+ratio.
+
+All options in this subsection require `--paginate`. `-O` is invalid with
+`--output-pages`; PNG page directories are never overwritten or merged.
 
 ### Montage layout
 
 - `-t`, `--tile COLSxROWS` sets the montage grid. A zero lets ImageMagick
-  determine that dimension automatically.
-- `-g`, `--gap XxY` sets the horizontal and vertical gaps between tiles.
+  determine that dimension automatically. The montage default is `10x0`; zip
+  defaults to `Nx1`, where N is the number of input patterns.
+- `-g`, `--gap XxY` sets horizontal and vertical pixel gaps (default:
+  `15x15`).
+- `-G`, `--gravity VALUE` sets tile alignment (default: `north`). Accepted
+  values are `north`, `south`, `east`, `west`, `center`, `northeast`,
+  `northwest`, `southeast`, and `southwest`.
+- `--background COLOR` sets the montage background (default: `transparent`).
+  ImageMagick color names and values such as `white` and `#ff0000` are valid.
 
 ### Appearance
 
-- `-b`, `--border [N]` adds a border, optionally with a pixel width.
-- `-s`, `--shadow` adds a drop shadow.
-- `--font FILE` selects the font file used internally by ImageMagick in
-  montage and zip modes. A system font is discovered automatically when this
-  option is omitted.
+- `--trim` enables final trimming; this is the montage and zip default.
+- `--no-trim` disables final trimming; this is the each-mode default.
+- `--trim-fuzz N` sets trim tolerance as a percentage (default: `0`).
+- `-b`, `--border [N]` adds a border. A bare flag uses width `1`; in montage
+  and zip modes it is applied to individual tiles.
+- `--border-color COLOR` sets border color (default: `black`).
+- `-s`, `--shadow` adds a drop shadow; disabled by default. It is applied to
+  the finalized montage in montage/zip mode and to each output in each mode.
+- `--shadow-color COLOR` sets shadow color (default: `gray`).
+- `--font FILE` selects the font used internally by ImageMagick in montage and
+  zip modes, or the visible decoration font in pagination. A system font is
+  discovered automatically when omitted. Each mode accepts but ignores it.
 
 ### Execution controls
 
 - `-O`, `--overwrite` overwrites an existing montage or paginated PDF without
-  prompting. PNG page directories are never overwritten or merged.
+  prompting. It has no effect in zip/each mode and is rejected with
+  `--output-pages`.
 - `-v`, `--verbose` prints processing details.
-- `-h`, `--help` shows every option and additional examples.
+- `-h`, `--help` shows concise general help. Either spelling accepts
+  `montage`, `zip`, `each`, or `paginate` for complete mode help.
 
-Crop and resize are applied to each input before montaging. Final trimming,
-borders, and shadows are applied afterward. Run `screenshots.sh --help` for the
-complete option reference.
+### Output behavior
+
+- Montage writes `output.png` by default and creates a missing output parent.
+  If its destination exists, an interactive terminal offers overwrite or
+  keep-both; `-O` skips that prompt.
+- Zip and each output go into fresh timestamped directories. Their selected
+  parent and any missing ancestors are created automatically; a same-second
+  name collision receives a numeric suffix.
+- Paginated PDF defaults beside the input and requires an existing writable
+  parent. An existing PDF prompts in an interactive terminal, fails safely in
+  non-interactive use, or is replaced atomically with `-O`.
+- Paginated PNG output uses a fresh timestamped directory. Its parent is
+  created automatically, but must be a real writable directory rather than a
+  symbolic link. A collision receives a numeric suffix.
+
+Crop and shrink-only resize run per input in every mode; pagination performs
+auto-orientation first. Montage and zip then apply per-tile borders while
+combining, followed by final trimming and shadows. Each mode applies trim,
+border, and shadow to every independent output. Pagination instead slices the
+preprocessed image and reserves margins and optional header/footer bands inside
+the final fixed-ratio page rather than adding them outside it.
 
 ## Troubleshooting
 

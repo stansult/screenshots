@@ -2,133 +2,387 @@
 
 set -euo pipefail
 
-usage() {
+usage_common_transform_options() {
     cat <<'EOF'
-Usage: ./screenshots.sh -i PATTERN -o FILE [options] [-v]                             # montage mode
-       ./screenshots.sh -i PATTERN -i PATTERN [-i PATTERN ...] [-o DIR] [options] [-v] # zip mode
-       ./screenshots.sh -i PATTERN -e [-o DIR] [options] [-v]                          # each mode
-       ./screenshots.sh -i IMAGE -p [-o FILE.pdf] [options] [-v]                       # paginate mode
-       ./screenshots.sh -i IMAGE -p --output-pages [-o DIR] [options] [-v]             # PNG pages
+  -w, --width N          Shrink to a maximum width, preserving aspect ratio
+  -H, --height N         Shrink to a maximum height, preserving aspect ratio
+  -c, --crop [N]         Crop N pixels from every side before resizing
+  -ct/-cb/-cl/-cr [N]    Add top/bottom/left/right crop before resizing
+  -v, --verbose          Print each action
+  -h, --help             General help; use either flag with MODE for details
+EOF
+}
+
+usage_general() {
+    cat <<'EOF'
+screenshots.sh prepares, combines, or paginates screenshots with ImageMagick.
+
+Usage:
+  screenshots.sh -i PATTERN [-o FILE] [options]                 # montage
+  screenshots.sh -i PATTERN -i PATTERN [-o DIR] [options]       # zip
+  screenshots.sh -i PATTERN --each [-o DIR] [options]           # each
+  screenshots.sh -i IMAGE --paginate [output option] [options]  # paginate
 
 Modes:
-  montage  Combine all matched screenshots into one grid image.
-  zip      Pair matched screenshots across 2+ -i patterns, one montage per pair.
-  each     Process every matched screenshot on its own, no montage.
-  paginate Slice one long screenshot into page-sized images and create a PDF
-           or a directory of PNG pages. No OCR is performed.
+  montage   Combine one sorted input set into a grid image.
+  zip       Pair equally sized sorted input sets into comparison montages.
+  each      Transform every matched image independently.
+  paginate  Slice one raster screenshot into fixed-ratio PDF or PNG pages.
 
-Options:
-  -i, --input PATTERN    Input glob pattern (required)
-                         Quote it (e.g. "*.png") so the shell passes it
-                         through unexpanded for the script to glob itself.
-                         Repeatable: passing -i more than once enables
-                         zip mode (see below).
-  -o, --output FILE|DIR  Montage mode: output file (default: output.png)
-                         Zip/Each mode: destination directory (default:
-                         current directory) — a new "zip-<timestamp>"/
-                         "each-<timestamp>" folder is created inside it.
-                         Paginate PDF output: PDF filename (default: input
-                         basename with .pdf beside the input image).
-                         Paginate PNG output: parent directory (default:
-                         current directory) — a new "pages-<timestamp>"/
-                         folder is created inside it.
-                         Not repeatable: passing -o more than once is
-                         an error.
-  -e, --each             Use each mode instead of montaging matched
-                         files together (see below). Requires exactly
-                         one -i pattern.
-  -p, --paginate         Slice exactly one image into portrait pages
-  --paper SIZE           [paginate only] letter, a4, or legal
-                         (default: letter)
-  --margin N             [paginate only] White margin on every side in
-                         output pixels (default: 0)
-  --overlap N            [paginate only] Source rows repeated between
-                         consecutive pages (default: 0)
-  --output-pages         [paginate only] Write lossless PNG pages to a new
-                         "pages-<timestamp>" directory instead of a PDF
-  --header               [paginate only] Add creation date/time at top left
-  --footer               [paginate only] Add page/total-pages at bottom right
-  --header-line          [paginate only] Add a thin gray rule below header
-  --footer-line          [paginate only] Add a thin gray rule above footer
-  --title TEXT           [paginate only] Add header-right text; requires
-                         --header
-  --page-font-size N     [paginate only] Header/footer font size in PDF
-                         points (default: 6; must be greater than 0 and
-                         less than 24)
-  -w, --width N          Resize by max width in pixels (opt-in)
-  -H, --height N         Resize by max height in pixels (opt-in)
-  -s, --shadow           Add drop shadow
-  -b, --border [N]       Add a border (montage/zip mode: per tile, baked
-                         into the montage step; each mode: per file).
-                         N is pixel width (default: 1 if --border is
-                         given with no value)
-  -h, --help             Show this help
+Common options:
+  -i, --input PATTERN    Quoted input glob; repeat to select zip mode
+  -o, --output FILE|DIR  Output meaning depends on the selected mode
+EOF
+    usage_common_transform_options
+    cat <<'EOF'
 
-Advanced options (crop and resize apply per input image before combining
-or paginating; trim, border, and shadow apply per image output after
-combining, in that order):
-  -O, --overwrite        Overwrite output file without prompting
-                         (montage and paginate-PDF modes only; zip/each
-                         always use a fresh timestamped folder, and
-                         paginate PNG directories are never replaced)
-  -v, --verbose          Print each action taken
-  -t, --tile COLSxROWS   [montage/zip only] Montage tile layout
-                         (default: 10x0; 0 means auto; in zip mode
-                         defaults to Nx1, N = number of -i patterns,
-                         unless explicitly given)
-  -g, --gap XxY          [montage/zip only] Gap between tiles in
-                         pixels (default: 15x15)
-  -G, --gravity GRAVITY  [montage/zip only] Montage gravity (default:
-                         north). Options: north, south, east, west,
-                         center, northeast, northwest, southeast,
-                         southwest
-  --background COLOR     [montage/zip only] Montage background
-                         (default: transparent). Examples: white,
-                         black, red, #ff0000
-  --trim                 Trim final output (default for montage/zip)
-  --no-trim              Skip final trim (default for each)
-  --trim-fuzz N          Fuzz tolerance % for trim (default: 0)
-  --shadow-color COLOR   Shadow color (default: gray)
-  --font FILE            [montage/zip only] Font file for ImageMagick.
-                         If omitted, a system font is discovered automatically.
-  --border-color COLOR   Border color (default: black)
-  -c, --crop N           Crop N pixels off all four sides of each input
-                         image, applied before resize (bare -c with no
-                         value has no effect)
-  -ct, --crop-top N      Additional top crop, on top of -c
-  -cb, --crop-bottom N   Additional bottom crop, on top of -c
-  -cl, --crop-left N     Additional left crop, on top of -c
-  -cr, --crop-right N    Additional right crop, on top of -c
-
-Zip mode:
-  Pass -i more than once to montage matching screenshots side by side
-  across N input lists. Each pattern is expanded and sorted
-  (LC_ALL=C), and every list must resolve to the same number of files;
-  the file at position j in each list is combined into one montage, so
-  the order of -i flags defines left-to-right position and sorted file
-  order defines pairing across lists.
-
-  Outputs are named "1.png", "2.png", etc. and written into a new
-  "zip-<timestamp>" folder created inside -o (or the current
-  directory, if -o was omitted).
-
-Each mode (-e/--each):
-  Resizes, trims, borders, and shadows every file matched by -i on
-  its own — no montage step, so montage options are ignored in this
-  mode.
-
-  Outputs keep their original filenames and are written into a new
-  "each-<timestamp>" folder created inside -o (or the current
-  directory, if -o was omitted).
+Detailed help:
+  screenshots.sh --help montage
+  screenshots.sh --help zip
+  screenshots.sh --help each
+  screenshots.sh --help paginate
 
 Examples:
-  ./screenshots.sh -i "1*.png" -o out.png --width 750 --shadow
-  ./screenshots.sh -i "1*.png" -o out.png --tile 25x1 --gap 15x15
-  ./screenshots.sh -i "android/*.png" -i "ios/*.png" -o compare/
-  ./screenshots.sh -i "1*.png" --each --width 750 --shadow
-  ./screenshots.sh -i long-page.png --paginate --paper a4 --margin 40 -o article.pdf
-  ./screenshots.sh -i long-page.png --paginate --output-pages -o exports
+  screenshots.sh -i "*.png" -o grid.png
+  screenshots.sh -i "android/*.png" -i "ios/*.png" -o comparisons
+  screenshots.sh -i "*.png" --each --width 750
+  screenshots.sh -i article.png --paginate -o article.pdf
 EOF
+}
+
+usage_montage() {
+    cat <<'EOF'
+Montage mode
+
+Usage:
+  screenshots.sh -i PATTERN [-o FILE] [montage options]
+
+Description:
+  Combine one pathname-sorted input set into a grid image. Quote PATTERN so
+  screenshots.sh, rather than the calling shell, expands it.
+
+Output:
+  The default is output.png. If the output matches the input glob, it is
+  excluded. Existing output prompts for overwrite or keep-both unless -O is
+  used.
+
+Processing and constraints:
+  Exactly one input pattern is required. Crop runs per input before shrink-only
+  resize. Images are then combined; final trim and shadow run afterward. A
+  usable system font or explicit --font FILE is required.
+
+Options:
+  -i, --input PATTERN    Exactly one quoted input pattern
+  -o, --output FILE      Output filename (default: output.png)
+  -O, --overwrite        Replace an existing output without prompting
+EOF
+    usage_common_transform_options
+    cat <<'EOF'
+  -t, --tile COLSxROWS   Grid layout (default: 10x0; 0 means automatic)
+  -g, --gap XxY          Tile gaps in pixels (default: 15x15)
+  -G, --gravity VALUE    north (default), south, east, west, center, or corner
+  --background COLOR     Montage background (default: transparent)
+  --trim / --no-trim     Enable (default) or disable final trim
+  --trim-fuzz N          Trim tolerance percentage (default: 0)
+  -b, --border [N]       Per-tile border (default width when present: 1)
+  --border-color COLOR   Border color (default: black)
+  -s, --shadow           Add final drop shadows
+  --shadow-color COLOR   Shadow color (default: gray)
+  --font FILE            ImageMagick font; otherwise discover a system font
+
+Examples:
+  screenshots.sh -i "*.png" -o grid.png
+  screenshots.sh -i "*.png" --tile 5x0 --gap 20x20
+  screenshots.sh -i "*.png" --tile 25x1 --width 750 --shadow
+EOF
+}
+
+usage_zip() {
+    cat <<'EOF'
+Zip mode
+
+Usage:
+  screenshots.sh -i PATTERN -i PATTERN [-i PATTERN ...] [-o DIR] [options]
+
+Description:
+  Pair corresponding files from multiple input sets. Each quoted pattern is
+  expanded and bytewise sorted independently; -i order determines the
+  left-to-right order within each montage.
+
+Output:
+  Files 1.png, 2.png, ... go into a fresh zip-<timestamp> directory under
+  -o DIR or the current directory.
+
+Processing and constraints:
+  Two or more -i options are required, and every list must have equal length.
+  Crop and shrink-only resize run per input before montage processing. The
+  default layout is Nx1 for N input lists; explicit tile columns are capped to
+  N. A usable system font or explicit --font FILE is required.
+
+Options:
+  -i, --input PATTERN    Repeat two or more times
+  -o, --output DIR       Parent of the new zip-* directory (default: .)
+EOF
+    usage_common_transform_options
+    cat <<'EOF'
+  -t, --tile COLSxROWS   Montage layout (default: Nx1)
+  -g, --gap XxY          Tile gaps (default: 15x15)
+  -G, --gravity VALUE    Tile gravity (default: north)
+  --background COLOR     Montage background (default: transparent)
+  --trim / --no-trim     Enable (default) or disable final trim
+  --trim-fuzz N          Trim tolerance percentage (default: 0)
+  -b, --border [N]       Per-tile border (default width when present: 1)
+  --border-color COLOR   Border color (default: black)
+  -s, --shadow           Add final drop shadows
+  --shadow-color COLOR   Shadow color (default: gray)
+  --font FILE            Select ImageMagick font; otherwise auto-discover
+
+Examples:
+  screenshots.sh -i "android/*.png" -i "ios/*.png" -o comparisons
+  screenshots.sh -i "before/*.png" -i "after/*.png" --gap 0x0 --shadow
+EOF
+}
+
+usage_each() {
+    cat <<'EOF'
+Each mode
+
+Usage:
+  screenshots.sh -i PATTERN --each [-o DIR] [options]
+
+Description:
+  Transform every match independently without creating a montage. Quote
+  PATTERN so screenshots.sh expands it.
+
+Output:
+  Basenames are preserved in a fresh each-<timestamp> directory under -o DIR
+  or the current directory.
+
+Processing and constraints:
+  Exactly one input pattern is required. Processing order is crop, shrink-only
+  resize, trim, border, then shadow. Trim is disabled by default. Montage-only
+  tile, gap, gravity, background, and font settings are accepted but ignored.
+
+Options:
+  -i, --input PATTERN    Exactly one quoted input pattern
+  -e, --each             Select each mode
+  -o, --output DIR       Parent of the new each-* directory (default: .)
+EOF
+    usage_common_transform_options
+    cat <<'EOF'
+  --trim / --no-trim     Enable or disable final trim (default: disabled)
+  --trim-fuzz N          Trim tolerance percentage (default: 0)
+  -b, --border [N]       Add a border (default width when present: 1)
+  --border-color COLOR   Border color (default: black)
+  -s, --shadow           Add a shadow to each output
+  --shadow-color COLOR   Shadow color (default: gray)
+
+Examples:
+  screenshots.sh -i "*.png" --each --width 750
+  screenshots.sh -i "shots/*.png" --each --trim --border 2 --shadow -o exports
+EOF
+}
+
+usage_paginate() {
+    cat <<'EOF'
+Paginate mode
+
+Usage:
+  screenshots.sh -i IMAGE --paginate [-o FILE.pdf] [pagination options]
+  screenshots.sh -i IMAGE --paginate --output-pages [-o DIR] [options]
+
+Description:
+  Slice one long image from top to bottom into fixed-ratio portrait pages.
+  Output is raster-only: no OCR or text layer is added.
+
+Output:
+  PDF defaults beside the input with a .pdf extension. Existing PDFs prompt
+  for overwrite or keep-both; non-interactive replacement requires -O. PNG
+  output creates page-NNN.png files in a fresh pages-<timestamp> directory
+  under -o DIR or the current directory, creating a missing parent. Directory
+  collisions receive a numeric suffix and are never replaced or merged.
+
+Processing and constraints:
+  Exactly one readable, single-frame raster image is required. Auto-orientation,
+  crop, then shrink-only resize run before fixed geometric slicing. Final
+  partial pages are white padded; every page retains the selected paper ratio.
+  Montage and appearance options are rejected, as is -O with --output-pages.
+
+Options:
+  -i, --input IMAGE      One literal path or quoted pattern matching one image
+  -p, --paginate         Select paginate mode
+  -o, --output FILE|DIR  PDF file, or PNG parent with --output-pages
+  -O, --overwrite        Atomically replace an existing PDF
+  --output-pages         Write lossless PNG pages instead of PDF
+  --paper SIZE           letter (default), a4, or legal; portrait only
+  --margin N             Uniform outer margin in output pixels (default: 0)
+  --overlap N            Repeated source rows between pages (default: 0;
+                         must be smaller than the calculated slice height)
+  --header               Add creation date/time at top left
+  --title TEXT           Add header-right text; requires --header
+  --footer               Add page/total-pages at bottom right
+  --header-line          Add a thin gray rule; requires --header
+  --footer-line          Add a thin gray rule; requires --footer
+  --page-font-size N     Decoration size in PDF points (default: 6; 0 < N < 24;
+                         requires --header or --footer)
+  --font FILE            Header/footer font; requires a header or footer;
+                         otherwise auto-discover
+EOF
+    usage_common_transform_options
+    cat <<'EOF'
+
+Decoration bands are 24 points tall with a 12-point horizontal text inset.
+Rules are 0.25-point #d0d0d0. Creation-time priority is EXIF capture time,
+recognized GoFullPage filename, filesystem creation time, then modification
+time. Long titles use an ellipsis.
+
+Rejected montage/appearance options include --each, repeated -i, --tile, --gap,
+--gravity, --background, trim options, shadow options, border options, and
+their color settings.
+
+If ImageMagick cannot write PDF, use --output-pages as the PNG fallback.
+
+Examples:
+  screenshots.sh -i article.png --paginate
+  screenshots.sh -i article.png --paginate --paper a4 --margin 40 -o article.pdf
+  screenshots.sh -i article.png --paginate --overlap 40 -o article.pdf
+  screenshots.sh -i article.png --paginate --output-pages -o exports
+  screenshots.sh -i article.png --paginate --header --footer --title "Article"
+EOF
+}
+
+usage_topics_error() {
+    echo "$1" >&2
+    echo "Accepted help topics: montage, zip, each, paginate" >&2
+}
+
+handle_help_request() {
+    local -a argv=("$@") extras=()
+    local count=${#argv[@]} i token next
+    local help_count=0 help_index=-1 topic="" topic_index=-1
+    local each_seen=false paginate_seen=false
+
+    i=0
+    while [ "$i" -lt "$count" ]; do
+        token="${argv[$i]}"
+        case "$token" in
+            -h|--help)
+                help_count=$((help_count + 1))
+                help_index="$i"
+                ;;
+            -e|--each) each_seen=true ;;
+            -p|--paginate) paginate_seen=true ;;
+            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap|--title|--page-font-size)
+                if [ $((i + 1)) -lt "$count" ]; then
+                    next="${argv[$((i + 1))]}"
+                    case "$next" in
+                        -h|--help|-e|--each|-p|--paginate) ;;
+                        *) i=$((i + 1)) ;;
+                    esac
+                fi
+                ;;
+            -b|--border|-c|--crop|-ct|--crop-top|-cb|--crop-bottom|-cl|--crop-left|-cr|--crop-right)
+                if [ $((i + 1)) -lt "$count" ]; then
+                    next="${argv[$((i + 1))]}"
+                    if [[ "$next" =~ ^[0-9]+$ ]]; then i=$((i + 1)); fi
+                fi
+                ;;
+        esac
+        i=$((i + 1))
+    done
+
+    [ "$help_count" -gt 0 ] || return 0
+    if [ "$help_count" -gt 1 ]; then
+        usage_topics_error "Help may be requested only once."
+        exit 1
+    fi
+    if $each_seen && $paginate_seen; then
+        usage_topics_error "--each and --paginate cannot both select help."
+        exit 1
+    fi
+
+    if [ $((help_index + 1)) -lt "$count" ]; then
+        next="${argv[$((help_index + 1))]}"
+        case "$next" in
+            montage|zip|each|paginate)
+                topic="$next"
+                topic_index=$((help_index + 1))
+                ;;
+            -*) ;;
+            *)
+                usage_topics_error "Unknown help topic: $next"
+                exit 1
+                ;;
+        esac
+    fi
+
+    i=0
+    while [ "$i" -lt "$count" ]; do
+        if [ "$i" -eq "$help_index" ] || [ "$i" -eq "$topic_index" ]; then
+            i=$((i + 1))
+            continue
+        fi
+        token="${argv[$i]}"
+        case "$token" in
+            --)
+                i=$((i + 1))
+                while [ "$i" -lt "$count" ]; do
+                    extras+=("${argv[$i]}")
+                    i=$((i + 1))
+                done
+                continue
+                ;;
+            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap|--title|--page-font-size)
+                if [ $((i + 1)) -lt "$count" ]; then
+                    next="${argv[$((i + 1))]}"
+                    if [ $((i + 1)) -ne "$help_index" ] && \
+                       [ $((i + 1)) -ne "$topic_index" ]; then
+                        case "$next" in
+                            -h|--help|-e|--each|-p|--paginate) ;;
+                            *) i=$((i + 1)) ;;
+                        esac
+                    fi
+                fi
+                ;;
+            -b|--border|-c|--crop|-ct|--crop-top|-cb|--crop-bottom|-cl|--crop-left|-cr|--crop-right)
+                if [ $((i + 1)) -lt "$count" ]; then
+                    next="${argv[$((i + 1))]}"
+                    if [[ "$next" =~ ^[0-9]+$ ]]; then i=$((i + 1)); fi
+                fi
+                ;;
+            -*) ;;
+            *) extras+=("$token") ;;
+        esac
+        i=$((i + 1))
+    done
+
+    if [ ${#extras[@]} -gt 0 ]; then
+        usage_topics_error "Unexpected extra argument in help request: ${extras[0]}"
+        exit 1
+    fi
+
+    if [ -n "$topic" ]; then
+        if { $each_seen && [ "$topic" != "each" ]; } || \
+           { $paginate_seen && [ "$topic" != "paginate" ]; }; then
+            usage_topics_error "Help topic '$topic' conflicts with the explicit mode selector."
+            exit 1
+        fi
+    elif $each_seen; then
+        topic="each"
+    elif $paginate_seen; then
+        topic="paginate"
+    else
+        topic="general"
+    fi
+
+    case "$topic" in
+        general) usage_general ;;
+        montage) usage_montage ;;
+        zip) usage_zip ;;
+        each) usage_each ;;
+        paginate) usage_paginate ;;
+    esac
+    exit 0
 }
 
 next_available_name() {
@@ -229,8 +483,10 @@ log() {
     fi
 }
 
+handle_help_request "$@"
+
 if [ $# -eq 0 ]; then
-    usage
+    usage_general
     exit 0
 fi
 
@@ -246,7 +502,7 @@ while [ $# -gt 0 ]; do
     esac
     case "$1" in
         -h|--help)
-            usage
+            usage_general
             exit 0
             ;;
         -i|--input)
@@ -526,6 +782,11 @@ if $page_font_size_set && ! $header_set && ! $footer_set; then
     exit 1
 fi
 
+if $paginate_mode && $font_set && ! $header_set && ! $footer_set; then
+    echo "--font requires --header or --footer in pagination mode." >&2
+    exit 1
+fi
+
 if $paginate_mode && $each_mode; then
     echo "--paginate and --each are mutually exclusive." >&2
     exit 1
@@ -538,7 +799,7 @@ fi
 
 if $paginate_mode && { $tile_set || $gap_set || $gravity_set || $background_set || \
     $trim_set || $trim_fuzz_set || $do_shadow || $shadow_color_set || \
-    $do_border || $border_color_set || $font_set; }; then
+    $do_border || $border_color_set; }; then
     echo "Montage/appearance options cannot be used with --paginate." >&2
     exit 1
 fi
@@ -627,10 +888,18 @@ if [ "$mode" = "montage" ] || [ "$mode" = "zip" ]; then
 fi
 
 if $paginate_mode && { $header_set || $footer_set; }; then
-    if ! paginate_font="$(find_montage_font)"; then
-        echo "No usable font found for pagination headers or footers." >&2
-        echo "Install a system sans-serif font." >&2
-        exit 1
+    if [ -n "$font_file" ]; then
+        if [ ! -r "$font_file" ]; then
+            echo "Font file does not exist or is not readable: $font_file" >&2
+            exit 1
+        fi
+        paginate_font="$font_file"
+    else
+        if ! paginate_font="$(find_montage_font)"; then
+            echo "No usable font found for pagination headers or footers." >&2
+            echo "Install a system font or pass --font /path/to/font." >&2
+            exit 1
+        fi
     fi
     log "Pagination font: $paginate_font"
 fi

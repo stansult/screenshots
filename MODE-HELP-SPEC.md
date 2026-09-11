@@ -2,8 +2,8 @@
 
 ## Status
 
-This is a deferred follow-up to screenshot pagination. Implement and stabilize
-pagination first; restructure help afterward as a separate change.
+Implemented after screenshot pagination. This document remains the acceptance
+specification for the general and mode-specific help system.
 
 This document specifies help behavior only. It must not change the established
 runtime syntax or introduce subcommands.
@@ -35,6 +35,10 @@ screenshots.sh --help montage
 screenshots.sh --help zip
 screenshots.sh --help each
 screenshots.sh --help paginate
+screenshots.sh -h montage
+screenshots.sh -h zip
+screenshots.sh -h each
+screenshots.sh -h paginate
 ```
 
 For modes that already have an explicit selector, also support:
@@ -62,21 +66,20 @@ Apply these rules:
    contains exactly one explicit mode selector: `--each` or `--paginate`.
 2. `--each --help` and `--help --each` both display each-mode help.
 3. `--paginate --help` and `--help --paginate` both display pagination help.
-4. `--help TOPIC` displays the named mode help. Topic matching is
-   case-sensitive and accepts only `montage`, `zip`, `each`, or `paginate`.
-5. `-h` does not take a topic. For example, `-h paginate` is invalid rather
-   than an alias for `--help paginate`.
-6. A named topic combined with a different explicit mode selector is an error.
+4. `-h TOPIC` and `--help TOPIC` display identical named mode help. Topic
+   matching is case-sensitive and accepts only `montage`, `zip`, `each`, or
+   `paginate`.
+5. A named topic combined with a different explicit mode selector is an error.
    For example, `--paginate --help each` is invalid.
-7. Both explicit selectors in one help request are an error. For example,
+6. Both explicit selectors in one help request are an error. For example,
    `--each --paginate --help` is invalid.
-8. More than one help occurrence is an error, including repeated identical
+7. More than one help occurrence is an error, including repeated identical
    requests.
-9. Unknown topics and extra positional arguments after a help topic are errors.
-10. Other ordinary execution options may appear before or after a valid help
-    request and are ignored. Help must remain available even when those options
-    are incomplete or invalid. For example, `--width nope --help paginate`
-    still displays pagination help.
+8. Unknown topics and extra positional arguments after a help topic are errors.
+9. Other ordinary execution options may appear before or after a valid help
+   request and are ignored. Help must remain available even when those options
+   are incomplete or invalid. For example, `--width nope --help paginate`
+   still displays pagination help.
 
 Valid help requests exit with status `0`. Invalid help requests print a concise
 error, list the accepted topics, and exit with status `1`.
@@ -177,6 +180,8 @@ than copying an older draft of `PAGINATION-SPEC.md`. It contains:
 - crop and resize preprocessing order;
 - optional 6-point creation-time headers, optional titles, page-count
   footers, and independent separator rules;
+- optional explicit decoration font selection with automatic discovery as the
+  default;
 - raster-only output and the absence of OCR;
 - fixed geometric breaks and final-page white padding;
 - PDF overwrite behavior and PNG-directory collision behavior;
@@ -232,22 +237,21 @@ Add tests for at least these cases:
 2. General help names all four modes and all four topic commands.
 3. General help does not contain the detailed pagination formulas or extended
    font troubleshooting.
-4. Each valid `--help TOPIC` command displays only the requested mode page and
-   exits `0`.
+4. Each valid `-h TOPIC` and `--help TOPIC` command displays only the requested
+   mode page, produces identical output, and exits `0`.
 5. `--each --help` and `--help --each` display each-mode help.
 6. `--paginate --help` and `--help --paginate` display pagination help.
 7. An unknown topic prints the accepted topics and exits `1`.
-8. `-h paginate` is rejected with an explanation that topics require
-   `--help`.
-9. Conflicting named and explicit modes are rejected.
-10. `--each --paginate --help` is rejected.
-11. Repeated help options are rejected.
-12. Extra positional arguments after a named topic are rejected.
-13. Invalid or incomplete ordinary options do not prevent valid help from
+8. Conflicting named and explicit modes are rejected identically for both help
+   spellings.
+9. `--each --paginate --help` is rejected.
+10. Repeated help options are rejected.
+11. Extra positional arguments after a named topic are rejected.
+12. Invalid or incomplete ordinary options do not prevent valid help from
     displaying.
-14. Every help form succeeds with `magick` and `montage` absent from `PATH`.
-15. No help form creates a file or directory.
-16. Existing non-help regression tests continue to pass unchanged.
+13. Every help form succeeds with `magick` and `montage` absent from `PATH`.
+14. No help form creates a file or directory.
+15. Existing non-help regression tests continue to pass unchanged.
 
 ## Completion criterion
 
