@@ -7,11 +7,15 @@ usage() {
 Usage: ./screenshots.sh -i PATTERN -o FILE [options] [-v]                             # montage mode
        ./screenshots.sh -i PATTERN -i PATTERN [-i PATTERN ...] [-o DIR] [options] [-v] # zip mode
        ./screenshots.sh -i PATTERN -e [-o DIR] [options] [-v]                          # each mode
+       ./screenshots.sh -i IMAGE -p [-o FILE.pdf] [options] [-v]                       # paginate mode
+       ./screenshots.sh -i IMAGE -p --output-pages [-o DIR] [options] [-v]             # PNG pages
 
 Modes:
   montage  Combine all matched screenshots into one grid image.
   zip      Pair matched screenshots across 2+ -i patterns, one montage per pair.
   each     Process every matched screenshot on its own, no montage.
+  paginate Slice one long screenshot into page-sized images and create a PDF
+           or a directory of PNG pages. No OCR is performed.
 
 Options:
   -i, --input PATTERN    Input glob pattern (required)
@@ -23,11 +27,25 @@ Options:
                          Zip/Each mode: destination directory (default:
                          current directory) — a new "zip-<timestamp>"/
                          "each-<timestamp>" folder is created inside it.
+                         Paginate PDF output: PDF filename (default: input
+                         basename with .pdf beside the input image).
+                         Paginate PNG output: parent directory (default:
+                         current directory) — a new "pages-<timestamp>"/
+                         folder is created inside it.
                          Not repeatable: passing -o more than once is
                          an error.
   -e, --each             Use each mode instead of montaging matched
                          files together (see below). Requires exactly
                          one -i pattern.
+  -p, --paginate         Slice exactly one image into portrait pages
+  --paper SIZE           [paginate only] letter, a4, or legal
+                         (default: letter)
+  --margin N             [paginate only] White margin on every side in
+                         output pixels (default: 0)
+  --overlap N            [paginate only] Source rows repeated between
+                         consecutive pages (default: 0)
+  --output-pages         [paginate only] Write lossless PNG pages to a new
+                         "pages-<timestamp>" directory instead of a PDF
   -w, --width N          Resize by max width in pixels (opt-in)
   -H, --height N         Resize by max height in pixels (opt-in)
   -s, --shadow           Add drop shadow
@@ -37,12 +55,13 @@ Options:
                          given with no value)
   -h, --help             Show this help
 
-Advanced options (crop and resize apply per input image, before
-montaging; trim, border, and shadow apply per output image, after,
-in that order):
+Advanced options (crop and resize apply per input image before combining
+or paginating; trim, border, and shadow apply per image output after
+combining, in that order):
   -O, --overwrite        Overwrite output file without prompting
-                         (montage mode only; zip/each always write into
-                         a fresh timestamped folder)
+                         (montage and paginate-PDF modes only; zip/each
+                         always use a fresh timestamped folder, and
+                         paginate PNG directories are never replaced)
   -v, --verbose          Print each action taken
   -t, --tile COLSxROWS   [montage/zip only] Montage tile layout
                          (default: 10x0; 0 means auto; in zip mode
@@ -98,6 +117,8 @@ Examples:
   ./screenshots.sh -i "1*.png" -o out.png --tile 25x1 --gap 15x15
   ./screenshots.sh -i "android/*.png" -i "ios/*.png" -o compare/
   ./screenshots.sh -i "1*.png" --each --width 750 --shadow
+  ./screenshots.sh -i long-page.png --paginate --paper a4 --margin 40 -o article.pdf
+  ./screenshots.sh -i long-page.png --paginate --output-pages -o exports
 EOF
 }
 
@@ -152,17 +173,35 @@ do_border=false
 border_width="1"
 border_color="black"
 each_mode=false
-
+paginate_mode=false
+paper="letter"
+margin="0"
+overlap="0"
 output_set=false
+paper_set=false
+margin_set=false
+overlap_set=false
+output_pages_set=false
+gap_set=false
+gravity_set=false
+background_set=false
+shadow_color_set=false
+font_set=false
+border_color_set=false
+trim_fuzz_set=false
 
 tmpdir=""
 out_tmpdir=""
+paginate_publish_tmp=""
 cleanup() {
     if [ -n "$tmpdir" ] && [ -d "$tmpdir" ]; then
         rm -rf "$tmpdir"
     fi
     if [ -n "$out_tmpdir" ] && [ -d "$out_tmpdir" ]; then
         rm -rf "$out_tmpdir"
+    fi
+    if [ -n "$paginate_publish_tmp" ] && [ -d "$paginate_publish_tmp" ]; then
+        rm -rf "$paginate_publish_tmp"
     fi
 }
 trap cleanup EXIT
@@ -180,7 +219,7 @@ fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz)
+        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap)
             if [ $# -lt 2 ]; then
                 echo "Option $1 requires an argument." >&2
                 echo "Run with --help for usage." >&2
@@ -205,7 +244,7 @@ while [ $# -gt 0 ]; do
             fi
             case "$2" in
                 *[*?\[]*)
-                    echo "Option -o/--output must be a literal filename, not a glob pattern: $2" >&2
+                    echo "Option -o/--output must be a literal path, not a glob pattern: $2" >&2
                     echo "Run with --help for usage." >&2
                     exit 1
                     ;;
@@ -229,14 +268,17 @@ while [ $# -gt 0 ]; do
             ;;
         -g|--gap)
             gap="$2"
+            gap_set=true
             shift 2
             ;;
         -G|--gravity)
             gravity="$2"
+            gravity_set=true
             shift 2
             ;;
         --background)
             background="$2"
+            background_set=true
             shift 2
             ;;
         -O|--overwrite)
@@ -259,6 +301,7 @@ while [ $# -gt 0 ]; do
             ;;
         --trim-fuzz)
             trim_fuzz="$2"
+            trim_fuzz_set=true
             shift 2
             ;;
         -s|--shadow)
@@ -267,10 +310,12 @@ while [ $# -gt 0 ]; do
             ;;
         --shadow-color)
             shadow_color="$2"
+            shadow_color_set=true
             shift 2
             ;;
         --font)
             font_file="$2"
+            font_set=true
             shift 2
             ;;
         -b|--border)
@@ -284,6 +329,7 @@ while [ $# -gt 0 ]; do
             ;;
         --border-color)
             border_color="$2"
+            border_color_set=true
             shift 2
             ;;
         -c|--crop)
@@ -335,6 +381,29 @@ while [ $# -gt 0 ]; do
             each_mode=true
             shift
             ;;
+        -p|--paginate)
+            paginate_mode=true
+            shift
+            ;;
+        --paper)
+            paper="$2"
+            paper_set=true
+            shift 2
+            ;;
+        --margin)
+            margin="$2"
+            margin_set=true
+            shift 2
+            ;;
+        --overlap)
+            overlap="$2"
+            overlap_set=true
+            shift 2
+            ;;
+        --output-pages)
+            output_pages_set=true
+            shift
+            ;;
         --)
             shift
             break
@@ -368,6 +437,42 @@ if [ ${#input_patterns[@]} -gt 1 ]; then
     zip_mode=true
 fi
 
+mode="montage"
+if $paginate_mode; then
+    mode="paginate"
+elif $each_mode; then
+    mode="each"
+elif $zip_mode; then
+    mode="zip"
+fi
+
+if ! $paginate_mode && { $paper_set || $margin_set || $overlap_set || $output_pages_set; }; then
+    echo "--paper, --margin, --overlap, and --output-pages require --paginate." >&2
+    exit 1
+fi
+
+if $paginate_mode && $each_mode; then
+    echo "--paginate and --each are mutually exclusive." >&2
+    exit 1
+fi
+
+if $paginate_mode && [ ${#input_patterns[@]} -ne 1 ]; then
+    echo "Pagination requires exactly one -i/--input option." >&2
+    exit 1
+fi
+
+if $paginate_mode && { $tile_set || $gap_set || $gravity_set || $background_set || \
+    $trim_set || $trim_fuzz_set || $do_shadow || $shadow_color_set || \
+    $do_border || $border_color_set || $font_set; }; then
+    echo "Montage/appearance options cannot be used with --paginate." >&2
+    exit 1
+fi
+
+if $paginate_mode && $output_pages_set && $force_overwrite; then
+    echo "-O/--overwrite cannot be used with --output-pages." >&2
+    exit 1
+fi
+
 if $each_mode && $zip_mode; then
     echo "--each requires exactly one -i pattern (use multiple -i for zip mode instead)." >&2
     exit 1
@@ -386,7 +491,7 @@ if ! command -v magick >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v montage >/dev/null 2>&1; then
+if { [ "$mode" = "montage" ] || [ "$mode" = "zip" ]; } && ! command -v montage >/dev/null 2>&1; then
     echo "ImageMagick 'montage' not found in PATH." >&2
     exit 1
 fi
@@ -428,7 +533,7 @@ find_montage_font() {
 }
 
 montage_font=""
-if ! $each_mode; then
+if [ "$mode" = "montage" ] || [ "$mode" = "zip" ]; then
     if [ -n "$font_file" ]; then
         if [ ! -r "$font_file" ]; then
             echo "Font file does not exist or is not readable: $font_file" >&2
@@ -453,6 +558,27 @@ fi
 if [ -n "$height" ] && ! [[ "$height" =~ ^[0-9]+$ ]]; then
     echo "Invalid --height value: $height" >&2
     exit 1
+fi
+
+if $paginate_mode; then
+    paper="$(printf '%s' "$paper" | tr '[:upper:]' '[:lower:]')"
+    case "$paper" in
+        letter|a4|legal) ;;
+        *)
+            echo "Invalid --paper value: $paper (expected letter, a4, or legal)" >&2
+            exit 1
+            ;;
+    esac
+    if ! [[ "$margin" =~ ^[0-9]+$ ]]; then
+        echo "Invalid --margin value: $margin (expected non-negative pixels)" >&2
+        exit 1
+    fi
+    if ! [[ "$overlap" =~ ^[0-9]+$ ]]; then
+        echo "Invalid --overlap value: $overlap (expected non-negative pixels)" >&2
+        exit 1
+    fi
+    margin=$((10#$margin))
+    overlap=$((10#$overlap))
 fi
 
 if ! [[ "$trim_fuzz" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
@@ -587,6 +713,315 @@ prepare_source_file() {
     echo "$working"
 }
 
+probe_single_image() {
+    local source="$1" probe line_count format frames probe_width probe_height
+
+    if [ ! -f "$source" ] || [ -L "$source" ] || [ ! -r "$source" ]; then
+        echo "Pagination input must be a readable, regular, non-symlink image: $source" >&2
+        return 1
+    fi
+    if ! probe="$(magick identify -quiet -format '%m|%n|%w|%h\n' "$source" 2>/dev/null)"; then
+        echo "Pagination input is not a readable raster image: $source" >&2
+        return 1
+    fi
+    line_count="$(printf '%s\n' "$probe" | awk 'NF { count++ } END { print count + 0 }')"
+    IFS='|' read -r format frames probe_width probe_height <<EOF
+$probe
+EOF
+    if [ "$line_count" -ne 1 ] || [ "$frames" != "1" ]; then
+        echo "Pagination requires a single-frame image: $source" >&2
+        return 1
+    fi
+    case "$format" in
+        AI|EPDF|EPI|EPS|EPS2|EPS3|EPSF|EPSI|HTML|MVG|MSL|PDF|PS|PS2|PS3|SVG|SVGZ|TEXT|XPS)
+            echo "Pagination input must be a raster image, not $format: $source" >&2
+            return 1
+            ;;
+    esac
+    if ! [[ "$probe_width" =~ ^[1-9][0-9]*$ ]] || ! [[ "$probe_height" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Pagination input has invalid dimensions: $source" >&2
+        return 1
+    fi
+}
+
+prepare_paginate_source() {
+    local source="$1" work_dir="$2" oriented working prepared
+
+    oriented="$work_dir/oriented.png"
+    magick "$source" -auto-orient +repage "$oriented" || return 1
+    working="$oriented"
+    if $crop_needed || [ -n "$resize_arg" ]; then
+        prepared="$(prepare_source_file "$working" "$work_dir" paginate)"
+        if [ "$prepared" != "$oriented" ]; then
+            working="$prepared"
+        fi
+    fi
+    printf '%s\n' "$working"
+}
+
+render_page_png() {
+    local source="$1" destination="$2" source_width="$3"
+    local source_start="$4" source_height="$5" canvas_width="$6"
+    local canvas_height="$7" page_margin="$8" density="$9"
+
+    magick -size "${canvas_width}x${canvas_height}" xc:white \
+        \( "$source" -crop "${source_width}x${source_height}+0+${source_start}" +repage \) \
+        -geometry "+${page_margin}+${page_margin}" -composite \
+        -units PixelsPerInch -density "$density" "$destination"
+}
+
+validate_generated_pages() {
+    local expected_width="$1" expected_height="$2"
+    shift 2
+    local page dimensions
+
+    for page in "$@"; do
+        if [ ! -f "$page" ] || [ -L "$page" ] || [ ! -s "$page" ]; then
+            echo "Pagination produced an invalid page image: $page" >&2
+            return 1
+        fi
+        dimensions="$(magick identify -quiet -format '%wx%h' "${page}[0]" 2>/dev/null)" || return 1
+        if [ "$dimensions" != "${expected_width}x${expected_height}" ]; then
+            echo "Pagination page has unexpected dimensions: $page ($dimensions)" >&2
+            return 1
+        fi
+    done
+}
+
+validate_paginated_pdf() {
+    local candidate="$1" expected_count="$2" expected_width_points="$3"
+    local expected_height_points="$4"
+
+    if [ ! -f "$candidate" ] || [ -L "$candidate" ] || [ ! -s "$candidate" ]; then
+        echo "Pagination produced no valid nonempty PDF." >&2
+        return 1
+    fi
+    if ! LC_ALL=C awk -v expected_count="$expected_count" \
+        -v expected_width="$expected_width_points" \
+        -v expected_height="$expected_height_points" '
+        function abs(value) { return value < 0 ? -value : value }
+        NR == 1 && substr($0, 1, 5) == "%PDF-" { header=1 }
+        index($0, "/Type /Page") && !index($0, "/Type /Pages") { pages++ }
+        index($0, "/MediaBox [") {
+            line=$0
+            sub(/^.*\/MediaBox \[/, "", line)
+            sub(/\].*$/, "", line)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+            count=split(line, value, /[[:space:]]+/)
+            if (count != 4 || abs(value[3] - expected_width) > 1 ||
+                abs(value[4] - expected_height) > 1) bad=1
+            boxes++
+        }
+        index($0, "%%EOF") { eof=1 }
+        END {
+            exit !(header && eof && pages == expected_count &&
+                boxes == expected_count && !bad)
+        }
+    ' "$candidate"; then
+        echo "Generated PDF failed page-count or page-size validation." >&2
+        return 1
+    fi
+}
+
+run_paginate() {
+    local pattern source source_dir source_base source_stem paginate_work prepared
+    local saved_ifs
+    local dimensions source_width source_height paper_width paper_height
+    local canvas_width canvas_height slice_height advance page_count density
+    local page_digits page_number start end current_height page_path
+    local destination destination_dir destination_base destination_dir_abs out_parent_dir timestamp
+    local staging candidate choice
+    local -a matches=() pages=()
+
+    pattern="${input_patterns[0]}"
+    if [ -e "$pattern" ] || [ -L "$pattern" ]; then
+        matches=("$pattern")
+    else
+        shopt -s nullglob
+        saved_ifs="$IFS"
+        IFS=
+        # Intentional pathname expansion; disabling field splitting preserves
+        # spaces, tabs, and newlines within each matched pathname.
+        # shellcheck disable=SC2206
+        matches=( $pattern )
+        IFS="$saved_ifs"
+        shopt -u nullglob
+    fi
+    if [ ${#matches[@]} -ne 1 ]; then
+        echo "Pagination requires exactly one image; input matched ${#matches[@]} files: $pattern" >&2
+        return 1
+    fi
+    source="${matches[0]}"
+    probe_single_image "$source" || return 1
+
+    paginate_work="$(mktemp -d "$tmpdir/paginate.XXXXXX")"
+    prepared="$(prepare_paginate_source "$source" "$paginate_work")" || return 1
+    dimensions="$(get_pixel_size "$prepared")"
+    source_width="${dimensions%%x*}"
+    source_height="${dimensions##*x}"
+    if ! [[ "$source_width" =~ ^[1-9][0-9]*$ ]] || ! [[ "$source_height" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Pagination source has invalid dimensions after preprocessing." >&2
+        return 1
+    fi
+
+    case "$paper" in
+        letter) paper_width="612"; paper_height="792" ;;
+        a4) paper_width="595.2756"; paper_height="841.8898" ;;
+        legal) paper_width="612"; paper_height="1008" ;;
+    esac
+    canvas_width=$((source_width + 2 * margin))
+    canvas_height="$(LC_ALL=C awk -v width="$canvas_width" -v pw="$paper_width" \
+        -v ph="$paper_height" 'BEGIN { printf "%d", (width * ph / pw) + 0.5 }')"
+    slice_height=$((canvas_height - 2 * margin))
+    if [ "$slice_height" -le 0 ]; then
+        echo "--margin leaves no usable page height." >&2
+        return 1
+    fi
+    if [ "$overlap" -ge "$slice_height" ]; then
+        echo "--overlap ($overlap) must be smaller than the page slice height ($slice_height)." >&2
+        return 1
+    fi
+    advance=$((slice_height - overlap))
+    if [ "$source_height" -le "$slice_height" ]; then
+        page_count=1
+    else
+        page_count=$((1 + (source_height - slice_height + advance - 1) / advance))
+    fi
+    density="$(LC_ALL=C awk -v width="$canvas_width" -v height="$canvas_height" \
+        -v pw="$paper_width" -v ph="$paper_height" \
+        'BEGIN { printf "%.8fx%.8f", 72 * width / pw, 72 * height / ph }')"
+    page_digits=${#page_count}
+    if [ "$page_digits" -lt 3 ]; then
+        page_digits=3
+    fi
+
+    log "Paginate: paper=$paper margin=${margin}px source=${source_width}x${source_height}"
+    log "Paginate: canvas=${canvas_width}x${canvas_height} slice=${slice_height}px overlap=${overlap}px pages=$page_count"
+
+    if $output_pages_set; then
+        if $output_set; then
+            out_parent_dir="$output_file"
+        else
+            out_parent_dir="."
+        fi
+        if [ ! -d "$out_parent_dir" ] || [ -L "$out_parent_dir" ] || [ ! -w "$out_parent_dir" ]; then
+            echo "PNG page output parent must be an existing writable directory: $out_parent_dir" >&2
+            return 1
+        fi
+        destination_dir_abs="$(cd "$out_parent_dir" && pwd -P)"
+        timestamp="$(date +%Y%m%d-%H%M%S)"
+        destination_base="pages-${timestamp}"
+        destination="$destination_dir_abs/$destination_base"
+        if [ -e "$destination" ] || [ -L "$destination" ]; then
+            destination="$(next_available_name "$destination")"
+            destination_base="$(basename "$destination")"
+        fi
+        paginate_publish_tmp="$(mktemp -d "$destination_dir_abs/.${destination_base}.XXXXXX")"
+        staging="$paginate_publish_tmp"
+    else
+        if $output_set; then
+            destination="$output_file"
+        else
+            source_dir="$(dirname "$source")"
+            source_base="$(basename "$source")"
+            source_stem="${source_base%.*}"
+            if [ -z "$source_stem" ]; then
+                source_stem="$source_base"
+            fi
+            destination="$source_dir/$source_stem.pdf"
+        fi
+        case "$destination" in
+            *.[pP][dD][fF]) ;;
+            *)
+                echo "Pagination PDF output must have a .pdf extension: $destination" >&2
+                return 1
+                ;;
+        esac
+        if [ -L "$destination" ]; then
+            echo "Pagination PDF output must not be a symbolic link: $destination" >&2
+            return 1
+        fi
+        if [ -e "$destination" ] && [ ! -f "$destination" ]; then
+            echo "Pagination PDF output must be a regular file path: $destination" >&2
+            return 1
+        fi
+        if [ -e "$destination" ] && ! $force_overwrite; then
+            if [ ! -t 0 ]; then
+                echo "Output file exists; use -O/--overwrite in non-interactive mode: $destination" >&2
+                return 1
+            fi
+            echo "Output file exists: $destination" >&2
+            while true; do
+                printf "Overwrite [o] or keep both [k]? " >&2
+                read -r choice
+                case "$choice" in
+                    o|O|overwrite) break ;;
+                    k|K|keep)
+                        destination="$(next_available_name "$destination")"
+                        echo "Using output file: $destination" >&2
+                        break
+                        ;;
+                    *) echo "Please enter 'o' or 'k'." >&2 ;;
+                esac
+            done
+        fi
+        destination_dir="$(dirname "$destination")"
+        destination_base="$(basename "$destination")"
+        if [ ! -d "$destination_dir" ] || [ -L "$destination_dir" ] || [ ! -w "$destination_dir" ]; then
+            echo "PDF output parent must be an existing writable directory: $destination_dir" >&2
+            return 1
+        fi
+        destination_dir_abs="$(cd "$destination_dir" && pwd -P)"
+        destination="$destination_dir_abs/$destination_base"
+        paginate_publish_tmp="$(mktemp -d "$destination_dir_abs/.screenshots-pdf.XXXXXX")"
+        staging="$paginate_work/pages"
+        mkdir "$staging"
+    fi
+
+    page_number=1
+    start=0
+    while [ "$page_number" -le "$page_count" ]; do
+        end=$((start + slice_height))
+        if [ "$end" -gt "$source_height" ]; then
+            end="$source_height"
+        fi
+        current_height=$((end - start))
+        page_path="$(printf "%s/page-%0*d.png" "$staging" "$page_digits" "$page_number")"
+        log "Page $page_number: source rows [$start,$end)"
+        render_page_png "$prepared" "$page_path" "$source_width" "$start" \
+            "$current_height" "$canvas_width" "$canvas_height" "$margin" "$density"
+        pages+=("$page_path")
+        if [ "$end" -eq "$source_height" ]; then
+            break
+        fi
+        start=$((start + advance))
+        page_number=$((page_number + 1))
+    done
+    if [ ${#pages[@]} -ne "$page_count" ]; then
+        echo "Pagination generated ${#pages[@]} pages; expected $page_count." >&2
+        return 1
+    fi
+    validate_generated_pages "$canvas_width" "$canvas_height" "${pages[@]}" || return 1
+
+    if $output_pages_set; then
+        mv "$paginate_publish_tmp" "$destination"
+        paginate_publish_tmp=""
+        all_output_list+=("$destination")
+        return 0
+    fi
+
+    candidate="$paginate_publish_tmp/output.pdf"
+    log "PDF assembly: ${#pages[@]} page(s) -> $destination"
+    if ! magick "${pages[@]}" -units PixelsPerInch -density "$density" \
+        -compress Zip "$candidate"; then
+        echo "ImageMagick PDF writing is unavailable. Use --output-pages as a PNG fallback." >&2
+        return 1
+    fi
+    validate_paginated_pdf "$candidate" "$page_count" "$paper_width" "$paper_height" || return 1
+    mv -f "$candidate" "$destination"
+    all_output_list+=("$destination")
+}
+
 # Populates the global 'montage_files' array from the global 'source_files'
 # array. Crops/resizes per-file (rather than batching by basename) because zip
 # mode routinely combines files with identical basenames from different
@@ -669,7 +1104,14 @@ all_output_list=()
 tmpdir="$(mktemp -d /tmp/screenshots.XXXXXX)"
 out_tmpdir="$(mktemp -d /tmp/screenshots.out.XXXXXX)"
 
-if $zip_mode; then
+if [ "$mode" = "paginate" ]; then
+    run_paginate
+    echo "Output file(s):"
+    for out in "${all_output_list[@]}"; do
+        echo "$out"
+    done
+    exit 0
+elif $zip_mode; then
     zip_n=${#input_patterns[@]}
     zip_all_files=()
     zip_offsets=()

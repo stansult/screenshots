@@ -2,7 +2,8 @@
 
 `screenshots.sh` is a small Bash utility for preparing and combining screenshot
 images with ImageMagick. It can create one montage, pair corresponding images
-from several sets, or process every image independently.
+from several sets, process every image independently, or split one long
+screenshot into page-sized PDF or PNG output.
 
 ## Requirements
 
@@ -35,6 +36,8 @@ You can also run it directly from the cloned directory with
 screenshots.sh -i PATTERN -o FILE [options]                 # montage
 screenshots.sh -i PATTERN -i PATTERN [-o DIR] [options]     # zip
 screenshots.sh -i PATTERN --each [-o DIR] [options]          # each
+screenshots.sh -i IMAGE --paginate [-o FILE.pdf] [options]   # paginated PDF
+screenshots.sh -i IMAGE --paginate --output-pages [-o DIR]   # PNG pages
 ```
 
 Always quote input patterns so the script, rather than the calling shell,
@@ -79,6 +82,51 @@ screenshots.sh -i "usage/*.png" --each -c 50 --width 750
 Results retain their original filenames and are written to a new timestamped
 `each-*` directory.
 
+### Paginate mode
+
+Paginate mode accepts exactly one single-frame raster image. It slices the
+image from top to bottom into portrait Letter, A4, or Legal pages. Output is
+raster-only and no OCR or text layer is added.
+
+Without an explicit output, the PDF is written beside the source using the
+source basename:
+
+```bash
+screenshots.sh -i long-article.png --paginate
+# creates long-article.pdf
+```
+
+Choose a paper size, add uniform white pixel margins, or repeat source rows
+between pages:
+
+```bash
+screenshots.sh -i long-article.png --paginate --paper a4 \
+  --margin 40 --overlap 20 -o article.pdf
+```
+
+Use `--output-pages` to create lossless PNG pages instead of a PDF. A fresh
+`pages-<timestamp>` directory is created in the current directory:
+
+```bash
+screenshots.sh -i long-article.png --paginate \
+  --output-pages
+```
+
+Use `-o` to select an existing parent directory:
+
+```bash
+screenshots.sh -i long-article.png --paginate \
+  --output-pages -o exports
+```
+
+Pages are named `page-001.png`, `page-002.png`, and so on. Every page has the
+selected paper ratio and identical pixel dimensions; unused space on the final
+page is white. Page breaks are fixed geometrically and do not inspect content.
+
+Existing crop and resize options work in paginate mode. Auto-orientation,
+cropping, and resizing happen before margins and page slicing. Montage and
+appearance options cannot be combined with `--paginate`.
+
 ## Common options
 
 ### Input and output
@@ -89,6 +137,9 @@ Results retain their original filenames and are written to a new timestamped
   directory in zip and each modes.
 - `-e`, `--each` processes matched files separately instead of creating a
   montage.
+- `-p`, `--paginate` slices exactly one long image into pages.
+- `--output-pages` writes PNG pages to a fresh `pages-<timestamp>` directory
+  instead of a PDF. With this option, `-o DIR` selects its parent directory.
 
 ### Sizing and cropping
 
@@ -97,6 +148,12 @@ Results retain their original filenames and are written to a new timestamped
 - `-c`, `--crop N` crops `N` pixels from every side before resizing.
 - `-ct`, `-cb`, `-cl`, and `-cr` add extra cropping to the top, bottom, left,
   and right sides respectively.
+
+### Pagination
+
+- `--paper SIZE` selects `letter` (default), `a4`, or `legal`.
+- `--margin N` adds `N` white output pixels on every side.
+- `--overlap N` repeats `N` preprocessed source rows between pages.
 
 ### Montage layout
 
@@ -114,7 +171,8 @@ Results retain their original filenames and are written to a new timestamped
 
 ### Execution controls
 
-- `-O`, `--overwrite` overwrites an existing montage without prompting.
+- `-O`, `--overwrite` overwrites an existing montage or paginated PDF without
+  prompting. PNG page directories are never overwritten or merged.
 - `-v`, `--verbose` prints processing details.
 - `-h`, `--help` shows every option and additional examples.
 
@@ -139,3 +197,14 @@ screenshots.sh -i "usage/*.png" --font /path/to/font.ttf
 
 If automatic discovery fails, the script exits with instructions to install a
 system font or use `--font`.
+
+### PDF writing is unavailable
+
+Some ImageMagick installations disable PDF writing through their security
+policy. Paginate mode reports this condition without leaving a partial PDF.
+PNG pagination remains available without PDF support:
+
+```bash
+screenshots.sh -i long-article.png --paginate \
+  --output-pages
+```

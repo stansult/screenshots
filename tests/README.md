@@ -11,8 +11,11 @@ small solid-color PNG fixtures in a temporary directory and remove them when
 the run finishes. No fixture images or output files are stored in the
 repository.
 
-The suite checks montage, crop, resize, each, zip, output-exclusion,
-argument-validation, and font-discovery behavior. Assertions use dimensions,
-filenames, file counts, exit statuses, and error messages rather than encoded
-image hashes, so minor differences between ImageMagick versions do not cause
-false failures.
+The suite checks montage, crop, resize, each, zip, pagination,
+output-exclusion, argument-validation, and font-discovery behavior. Pagination
+coverage includes PDF and PNG output, paper dimensions, margins, overlap,
+preprocessing order, automatic output directories, parent-directory selection,
+atomic replacement, invalid input, and dependency isolation. Assertions use
+dimensions, selected pixels, filenames, file counts, exit statuses, and error
+messages rather than encoded image hashes, so minor differences between
+ImageMagick versions do not cause false failures.
