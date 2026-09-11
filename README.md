@@ -33,8 +33,8 @@ You can also run it directly from the cloned directory with
 ## Usage
 
 ```text
-screenshots.sh -i PATTERN -o FILE [options]                 # montage
-screenshots.sh -i PATTERN -i PATTERN [-o DIR] [options]     # zip
+screenshots.sh -i PATTERN -o FILE [options]                  # montage
+screenshots.sh -i PATTERN -i PATTERN [-o DIR] [options]      # zip
 screenshots.sh -i PATTERN --each [-o DIR] [options]          # each
 screenshots.sh -i IMAGE --paginate [-o FILE.pdf] [options]   # paginated PDF
 screenshots.sh -i IMAGE --paginate --output-pages [-o DIR]   # PNG pages
