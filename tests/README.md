@@ -16,7 +16,9 @@ output-exclusion, argument-validation, and font-discovery behavior. Pagination
 coverage includes PDF and PNG output, paper dimensions, margins, overlap,
 headers, footers, creation timestamps, preprocessing order, automatic output
 directories, parent-directory selection, atomic replacement, invalid input,
-and dependency isolation. Assertions use
+dependency isolation, complete margin edges, zero-overlap row continuity,
+timestamp-source priority, large page-number width, and every incompatible
+pagination option. Assertions use
 dimensions, selected pixels, filenames, file counts, exit statuses, and error
 messages rather than encoded image hashes, so minor differences between
 ImageMagick versions do not cause false failures.

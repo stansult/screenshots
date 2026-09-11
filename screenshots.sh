@@ -934,7 +934,10 @@ render_fitted_title() {
         render_text_label "$candidate" "$destination" "$density" || return 1
         dimensions="$(get_pixel_size "$destination")"
         candidate_width="${dimensions%%x*}"
-        if [ "$candidate_width" -le "$max_width" ]; then return 0; fi
+        if [ "$candidate_width" -le "$max_width" ]; then
+            log "Header title: $candidate"
+            return 0
+        fi
         length=$((length - 1))
         candidate="${text:0:length}…"
     done

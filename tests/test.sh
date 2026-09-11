@@ -7,6 +7,8 @@ SCRIPT="$SCRIPT_DIR/screenshots.sh"
 WORK_DIR="$(mktemp -d /tmp/screenshots-tests.XXXXXX)"
 REAL_MONTAGE="$(command -v montage || true)"
 REAL_MAGICK="$(command -v magick || true)"
+REAL_STAT="$(command -v stat || true)"
+REAL_DATE="$(command -v date || true)"
 TEST_FONT=""
 
 passed=0
@@ -53,6 +55,18 @@ assert_page_count() {
     local file="$1" expected="$2" actual
     actual="$(magick identify -format '%p\n' "$file" | awk 'NF { count++ } END { print count + 0 }')"
     [ "$actual" -eq "$expected" ] || fail "expected $file to have $expected pages, got $actual"
+}
+
+assert_pdf_page_size() {
+    local file="$1" expected_width="$2" expected_height="$3"
+    local boxes
+    boxes="$(magick identify -format '%[pdf:HiResBoundingBox]\n' "$file")"
+    printf '%s\n' "$boxes" | awk -F '[x+]' \
+        -v expected_width="$expected_width" -v expected_height="$expected_height" '
+        function abs(value) { return value < 0 ? -value : value }
+        NF && (abs($1 - expected_width) > 1 || abs($2 - expected_height) > 1) { bad=1 }
+        END { exit bad }
+    ' || fail "PDF page dimensions are not ${expected_width}x${expected_height}: $file"
 }
 
 assert_pixel_rgb() {
@@ -294,6 +308,38 @@ test_paginate_margin_and_padding() {
     assert_pixel_rgb "$pages_dir/page-001.png" 10,40 '255,255,255'
 }
 
+test_paginate_full_page_margins() {
+    local pages_dir page
+    new_case
+    make_image "$CASE_DIR/long.png" 100x200 red
+    run_script -i long.png --paginate --margin 10 --output-pages
+    assert_status 0 || return 1
+    pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
+    page="$pages_dir/page-001.png"
+    assert_dimensions "$page" 120x155 || return 1
+    assert_pixel_rgb "$page" 9,10 '255,255,255' || return 1
+    assert_pixel_rgb "$page" 10,10 '255,0,0' || return 1
+    assert_pixel_rgb "$page" 109,10 '255,0,0' || return 1
+    assert_pixel_rgb "$page" 110,10 '255,255,255' || return 1
+    assert_pixel_rgb "$page" 10,144 '255,0,0' || return 1
+    assert_pixel_rgb "$page" 10,145 '255,255,255'
+}
+
+test_paginate_zero_overlap_coverage() {
+    local pages_dir first_last second_first source_first source_second
+    new_case
+    magick -size 100x200 gradient:red-blue "$CASE_DIR/long.png"
+    run_script -i long.png --paginate --overlap 0 --output-pages
+    assert_status 0 || return 1
+    pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
+    first_last="$(magick "$pages_dir/page-001.png" -format '%[pixel:p{50,128}]' info:)"
+    second_first="$(magick "$pages_dir/page-002.png" -format '%[pixel:p{50,0}]' info:)"
+    source_first="$(magick "$CASE_DIR/long.png" -format '%[pixel:p{50,128}]' info:)"
+    source_second="$(magick "$CASE_DIR/long.png" -format '%[pixel:p{50,129}]' info:)"
+    [ "$first_last" = "$source_first" ] || fail 'first page did not end with source row 128' || return 1
+    [ "$second_first" = "$source_second" ] || fail 'second page did not begin with source row 129'
+}
+
 test_paginate_overlap() {
     local first_tail second_head pages_dir
     new_case
@@ -333,6 +379,15 @@ test_paginate_pdf_a4() {
     ' || fail 'A4 PDF page dimensions are incorrect'
 }
 
+test_paginate_short_letter_pdf() {
+    new_case
+    make_image "$CASE_DIR/short.png" 100x30 red
+    run_script -i short.png --paginate -o result.pdf -O
+    assert_status 0 || return 1
+    assert_page_count "$CASE_DIR/result.pdf" 1 || return 1
+    assert_pdf_page_size "$CASE_DIR/result.pdf" 612 792
+}
+
 test_paginate_default_pdf_name() {
     new_case
     make_image "$CASE_DIR/article.png" 100x80 yellow
@@ -347,10 +402,11 @@ test_paginate_header_footer_layout() {
     make_image "$CASE_DIR/screencapture-example-2026-09-10-23_52_17.png" 600x1501 white
     run_script -i 'screencapture-example-2026-09-10-23_52_17.png' --paginate \
         --output-pages --margin 20 --header --header-line --footer --footer-line \
-        --title 'Example title' \
-        --page-font-size 6 -v
+        --title 'A deliberately long title that must be shortened before it can collide with the creation timestamp, followed by additional text that makes fitting impossible' -v
     assert_status 0 || return 1
     assert_contains "$CASE_DIR/stderr" "created='Sep 10, 2026 · 11:52 PM'" || return 1
+    assert_contains "$CASE_DIR/stderr" 'Header title:' || return 1
+    assert_contains "$CASE_DIR/stderr" '…' || return 1
     pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
     assert_dimensions "$pages_dir/page-001.png" 640x828 || return 1
     count="$(find "$pages_dir" -maxdepth 1 -type f -name 'page-*.png' | wc -l | tr -d ' ')"
@@ -395,6 +451,55 @@ test_paginate_header_footer_options() {
     assert_contains "$CASE_DIR/stderr" '--footer-line requires --footer'
 }
 
+test_paginate_timestamp_priority() {
+    local fake_bin command_path
+    new_case
+    make_image "$CASE_DIR/screencapture-example-2026-09-10-23_52_17.png" 600x50 white
+    magick "$CASE_DIR/screencapture-example-2026-09-10-23_52_17.png" \
+        -set 'exif:DateTimeOriginal' '2020:01:02 03:04:05' \
+        "$CASE_DIR/with-exif.png"
+    run_script -i with-exif.png --paginate --header --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" "created='Jan 2, 2020 · 3:04 AM'" || return 1
+
+    rm -rf "$CASE_DIR"/pages-*
+    run_script -i screencapture-example-2026-09-10-23_52_17.png \
+        --paginate --header --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" "created='Sep 10, 2026 · 11:52 PM'" || return 1
+
+    rm -rf "$CASE_DIR"/pages-*
+    fake_bin="$CASE_DIR/bin"
+    mkdir "$fake_bin"
+    {
+        printf '#!/bin/bash\n'
+        printf 'if [ "$1" = "-f" ] && [ "$2" = "%%B" ]; then exit 1; fi\n'
+        printf 'if [ "$1" = "-c" ] && [ "$2" = "%%W" ]; then echo 1577934240; exit 0; fi\n'
+        printf 'exec %q "$@"\n' "$REAL_STAT"
+    } >"$fake_bin/stat"
+    {
+        printf '#!/bin/bash\n'
+        printf 'if [ "$1" = "-r" ]; then exit 1; fi\n'
+        printf 'if [ "$1" = "-d" ]; then echo "2020 01 02 03 04"; exit 0; fi\n'
+        printf 'exec %q "$@"\n' "$REAL_DATE"
+    } >"$fake_bin/date"
+    chmod +x "$fake_bin/stat" "$fake_bin/date"
+    command_path="$fake_bin:$(dirname "$REAL_MAGICK"):/bin:/usr/bin"
+    magick "$CASE_DIR/with-exif.png" +profile '*' "$CASE_DIR/plain.png"
+    run_script_with_path "$command_path" -i plain.png --paginate --header --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" "created='Jan 2, 2020 · 3:04 AM'"
+}
+
+test_paginate_page_number_width_logic() {
+    local page_count page_digits
+    assert_contains "$SCRIPT" 'page_digits=${#page_count}' || return 1
+    assert_contains "$SCRIPT" 'if [ "$page_digits" -lt 3 ]' || return 1
+    page_count=1000
+    page_digits=${#page_count}
+    [ "$page_digits" -eq 4 ] || fail '1000-page output did not select four-digit numbering'
+}
+
 test_paginate_rejects_invalid_combinations() {
     new_case
     make_image "$CASE_DIR/a.png" 100x100 red
@@ -423,6 +528,41 @@ test_paginate_rejects_invalid_combinations() {
     run_script -i a.png --paper a4 -o out.png
     [ "$RUN_STATUS" -ne 0 ] || fail 'pagination-only option unexpectedly succeeded without --paginate'
     assert_contains "$CASE_DIR/stderr" 'require --paginate'
+}
+
+assert_paginate_option_rejected() {
+    local label="$1"
+    shift
+    run_script -i a.png --paginate --output-pages "$@"
+    [ "$RUN_STATUS" -ne 0 ] || fail "$label unexpectedly succeeded"
+    assert_contains "$CASE_DIR/stderr" 'cannot be used with --paginate'
+}
+
+test_paginate_rejects_every_incompatible_option() {
+    new_case
+    make_image "$CASE_DIR/a.png" 100x100 red
+    make_image "$CASE_DIR/b.png" 100x100 blue
+
+    run_script -i a.png -i b.png --paginate --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'repeated pagination input unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'exactly one -i/--input option' || return 1
+
+    run_script -i a.png --paginate --each --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail '--each with pagination unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'mutually exclusive' || return 1
+
+    assert_paginate_option_rejected '--tile' --tile 1x1 || return 1
+    assert_paginate_option_rejected '--gap' --gap 15x15 || return 1
+    assert_paginate_option_rejected '--gravity' --gravity north || return 1
+    assert_paginate_option_rejected '--background' --background white || return 1
+    assert_paginate_option_rejected '--trim' --trim || return 1
+    assert_paginate_option_rejected '--no-trim' --no-trim || return 1
+    assert_paginate_option_rejected '--trim-fuzz' --trim-fuzz 0 || return 1
+    assert_paginate_option_rejected '--shadow' --shadow || return 1
+    assert_paginate_option_rejected '--shadow-color' --shadow-color gray || return 1
+    assert_paginate_option_rejected '--border' --border || return 1
+    assert_paginate_option_rejected '--border-color' --border-color black || return 1
+    assert_paginate_option_rejected '--font' --font missing.ttf
 }
 
 test_paginate_uses_output_parent_directory() {
@@ -536,7 +676,13 @@ test_paginate_reports_pdf_writer_failure() {
     run_script_with_path "$fake_bin:/bin:/usr/bin" -i a.png --paginate -o result.pdf
     [ "$RUN_STATUS" -ne 0 ] || fail 'simulated PDF writer failure unexpectedly succeeded'
     assert_contains "$CASE_DIR/stderr" '--output-pages' || return 1
-    [ ! -e "$CASE_DIR/result.pdf" ] || fail 'PDF writer failure left a partial destination'
+    [ ! -e "$CASE_DIR/result.pdf" ] || fail 'PDF writer failure left a partial destination' || return 1
+
+    printf 'original destination\n' >"$CASE_DIR/result.pdf"
+    run_script_with_path "$fake_bin:/bin:/usr/bin" \
+        -i a.png --paginate -o result.pdf -O
+    [ "$RUN_STATUS" -ne 0 ] || fail 'writer failure with -O unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/result.pdf" 'original destination'
 }
 
 run_test() {
@@ -586,13 +732,19 @@ run_test 'invalid font path is rejected' test_invalid_font
 run_test 'each mode does not require a font' test_each_mode_does_not_require_font
 run_test 'paginate exact page boundary' test_paginate_exact_page_boundary
 run_test 'paginate margin and final padding' test_paginate_margin_and_padding
+run_test 'paginate preserves every full-page margin' test_paginate_full_page_margins
 run_test 'paginate overlap repeats source rows' test_paginate_overlap
+run_test 'paginate zero overlap covers each row once' test_paginate_zero_overlap_coverage
 run_test 'paginate preprocesses before geometry' test_paginate_preprocesses_before_geometry
 run_test 'paginate creates A4 PDF' test_paginate_pdf_a4
+run_test 'paginate creates short Letter PDF' test_paginate_short_letter_pdf
 run_test 'paginate derives default PDF name' test_paginate_default_pdf_name
 run_test 'paginate renders header and footer' test_paginate_header_footer_layout
 run_test 'paginate validates header/footer options' test_paginate_header_footer_options
+run_test 'paginate selects timestamp by priority' test_paginate_timestamp_priority
+run_test 'paginate expands page-number width' test_paginate_page_number_width_logic
 run_test 'paginate rejects invalid combinations' test_paginate_rejects_invalid_combinations
+run_test 'paginate rejects every incompatible option' test_paginate_rejects_every_incompatible_option
 run_test 'paginate uses output parent directory' test_paginate_uses_output_parent_directory
 run_test 'paginate preserves existing PDF' test_paginate_preserves_existing_pdf_without_overwrite
 run_test 'paginate rejects symlink and animation' test_paginate_rejects_symlink_and_animation

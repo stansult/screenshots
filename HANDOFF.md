@@ -99,7 +99,7 @@ git diff --check
 The regression result was:
 
 ```text
-29 passed, 0 failed, 0 skipped
+35 passed, 0 failed, 0 skipped
 ```
 
 Tests cover the four output forms, both `exports` and `exports/`, repeated PNG
