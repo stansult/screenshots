@@ -18,7 +18,9 @@ headers, footers, creation timestamps, preprocessing order, automatic output
 directories, parent-directory selection, atomic replacement, invalid input,
 dependency isolation, complete margin edges, zero-overlap row continuity,
 timestamp-source priority, large page-number width, and every incompatible
-pagination option. Mode-help coverage includes all topics and explicit
+pagination option. Validation coverage also rejects mode-specific and
+dependent options that would otherwise have no effect. Mode-help coverage
+includes all topics and explicit
 selectors, invalid/conflicting requests, dependency isolation, and confirmation
 that help creates no output. Assertions use
 dimensions, selected pixels, filenames, file counts, exit statuses, and error

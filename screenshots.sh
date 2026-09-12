@@ -7,7 +7,20 @@ usage_common_transform_options() {
   -w, --width N          Shrink to a maximum width, preserving aspect ratio
   -H, --height N         Shrink to a maximum height, preserving aspect ratio
   -c, --crop [N]         Crop N pixels from every side before resizing
+EOF
+    if [ "${1:-concise}" = "detailed" ]; then
+        cat <<'EOF'
+  -ct, --crop-top [N]    Add top crop before resizing
+  -cb, --crop-bottom [N] Add bottom crop before resizing
+  -cl, --crop-left [N]   Add left crop before resizing
+  -cr, --crop-right [N]  Add right crop before resizing
+EOF
+    else
+        cat <<'EOF'
   -ct/-cb/-cl/-cr [N]    Add top/bottom/left/right crop before resizing
+EOF
+    fi
+    cat <<'EOF'
   -v, --verbose          Print each action
   -h, --help             General help; use either flag with MODE for details
 EOF
@@ -76,18 +89,18 @@ Options:
   -o, --output FILE      Output filename (default: output.png)
   -O, --overwrite        Replace an existing output without prompting
 EOF
-    usage_common_transform_options
+    usage_common_transform_options detailed
     cat <<'EOF'
   -t, --tile COLSxROWS   Grid layout (default: 10x0; 0 means automatic)
   -g, --gap XxY          Tile gaps in pixels (default: 15x15)
   -G, --gravity VALUE    north (default), south, east, west, center, or corner
   --background COLOR     Montage background (default: transparent)
   --trim / --no-trim     Enable (default) or disable final trim
-  --trim-fuzz N          Trim tolerance percentage (default: 0)
-  -b, --border [N]       Per-tile border (default width when present: 1)
-  --border-color COLOR   Border color (default: black)
+  --trim-fuzz N          Trim tolerance percentage (default: 0; needs trim)
+  -b, --border [N]       Per-tile border (default: 1; explicit N must be > 0)
+  --border-color COLOR   Border color (default: black; requires --border)
   -s, --shadow           Add final drop shadows
-  --shadow-color COLOR   Shadow color (default: gray)
+  --shadow-color COLOR   Shadow color (default: gray; requires --shadow)
   --font FILE            ImageMagick font; otherwise discover a system font
 
 Examples:
@@ -117,24 +130,25 @@ Processing and constraints:
   Two or more -i options are required, and every list must have equal length.
   Crop and shrink-only resize run per input before montage processing. The
   default layout is Nx1 for N input lists; explicit tile columns are capped to
-  N. A usable system font or explicit --font FILE is required.
+  N. A usable system font or explicit --font FILE is required. -O/--overwrite
+  is rejected because output always uses a fresh directory.
 
 Options:
   -i, --input PATTERN    Repeat two or more times
   -o, --output DIR       Parent of the new zip-* directory (default: .)
 EOF
-    usage_common_transform_options
+    usage_common_transform_options detailed
     cat <<'EOF'
   -t, --tile COLSxROWS   Montage layout (default: Nx1)
   -g, --gap XxY          Tile gaps (default: 15x15)
   -G, --gravity VALUE    Tile gravity (default: north)
   --background COLOR     Montage background (default: transparent)
   --trim / --no-trim     Enable (default) or disable final trim
-  --trim-fuzz N          Trim tolerance percentage (default: 0)
-  -b, --border [N]       Per-tile border (default width when present: 1)
-  --border-color COLOR   Border color (default: black)
+  --trim-fuzz N          Trim tolerance percentage (default: 0; needs trim)
+  -b, --border [N]       Per-tile border (default: 1; explicit N must be > 0)
+  --border-color COLOR   Border color (default: black; requires --border)
   -s, --shadow           Add final drop shadows
-  --shadow-color COLOR   Shadow color (default: gray)
+  --shadow-color COLOR   Shadow color (default: gray; requires --shadow)
   --font FILE            Select ImageMagick font; otherwise auto-discover
 
 Examples:
@@ -161,21 +175,23 @@ Output:
 Processing and constraints:
   Exactly one input pattern is required. Processing order is crop, shrink-only
   resize, trim, border, then shadow. Trim is disabled by default. Montage-only
-  tile, gap, gravity, background, and font settings are accepted but ignored.
+  Unsupported options -t/--tile, -g/--gap, -G/--gravity, --background, and
+  --font are rejected, as is -O/--overwrite because output always uses a fresh
+  directory.
 
 Options:
   -i, --input PATTERN    Exactly one quoted input pattern
   -e, --each             Select each mode
   -o, --output DIR       Parent of the new each-* directory (default: .)
 EOF
-    usage_common_transform_options
+    usage_common_transform_options detailed
     cat <<'EOF'
   --trim / --no-trim     Enable or disable final trim (default: disabled)
-  --trim-fuzz N          Trim tolerance percentage (default: 0)
-  -b, --border [N]       Add a border (default width when present: 1)
-  --border-color COLOR   Border color (default: black)
+  --trim-fuzz N          Trim tolerance percentage (default: 0; requires trim)
+  -b, --border [N]       Add border (default: 1; explicit N must be > 0)
+  --border-color COLOR   Border color (default: black; requires --border)
   -s, --shadow           Add a shadow to each output
-  --shadow-color COLOR   Shadow color (default: gray)
+  --shadow-color COLOR   Shadow color (default: gray; requires --shadow)
 
 Examples:
   screenshots.sh -i "*.png" --each --width 750
@@ -228,7 +244,7 @@ Options:
   --font FILE            Header/footer font; requires a header or footer;
                          otherwise auto-discover
 EOF
-    usage_common_transform_options
+    usage_common_transform_options detailed
     cat <<'EOF'
 
 Decoration bands are 24 points tall with a 12-point horizontal text inset.
@@ -236,9 +252,9 @@ Rules are 0.25-point #d0d0d0. Creation-time priority is EXIF capture time,
 recognized GoFullPage filename, filesystem creation time, then modification
 time. Long titles use an ellipsis.
 
-Rejected montage/appearance options include --each, repeated -i, --tile, --gap,
---gravity, --background, trim options, shadow options, border options, and
-their color settings.
+Rejected montage/appearance options include -e/--each, repeated -i/--input,
+-t/--tile, -g/--gap, -G/--gravity, --background, --trim, --no-trim,
+--trim-fuzz, -s/--shadow, --shadow-color, -b/--border, and --border-color.
 
 If ImageMagick cannot write PDF, use --output-pages as the PNG fallback.
 
@@ -820,6 +836,51 @@ if ! $trim_set; then
     else
         do_trim=true
     fi
+fi
+
+no_op_errors=()
+if [ "$mode" = "each" ]; then
+    each_no_ops=()
+    $tile_set && each_no_ops+=("--tile")
+    $gap_set && each_no_ops+=("--gap")
+    $gravity_set && each_no_ops+=("--gravity")
+    $background_set && each_no_ops+=("--background")
+    $font_set && each_no_ops+=("--font")
+    $force_overwrite && each_no_ops+=("-O/--overwrite")
+    if [ ${#each_no_ops[@]} -gt 0 ]; then
+        each_no_ops_text="${each_no_ops[0]}"
+        each_no_ops_index=1
+        while [ "$each_no_ops_index" -lt "${#each_no_ops[@]}" ]; do
+            each_no_ops_text="$each_no_ops_text, ${each_no_ops[$each_no_ops_index]}"
+            each_no_ops_index=$((each_no_ops_index + 1))
+        done
+        no_op_errors+=("Each mode does not use: $each_no_ops_text. Remove these options, or choose a mode that supports them.")
+    fi
+elif [ "$mode" = "zip" ] && $force_overwrite; then
+    no_op_errors+=("Zip mode does not use -O/--overwrite because it always creates a fresh output directory.")
+fi
+
+if [ "$mode" != "paginate" ]; then
+    if $shadow_color_set && ! $do_shadow; then
+        no_op_errors+=("--shadow-color requires --shadow; add --shadow or remove --shadow-color.")
+    fi
+    if $border_color_set && ! $do_border; then
+        no_op_errors+=("--border-color requires --border; add --border or remove --border-color.")
+    fi
+    if $trim_fuzz_set && ! $do_trim; then
+        no_op_errors+=("--trim-fuzz requires trimming; add --trim or remove --trim-fuzz/--no-trim.")
+    fi
+    if $do_border && [ "$border_width" -eq 0 ]; then
+        no_op_errors+=("--border 0 adds no border; omit --border or use a positive width.")
+    fi
+fi
+
+if [ ${#no_op_errors[@]} -gt 0 ]; then
+    echo "Options with no effect:" >&2
+    for no_op_error in "${no_op_errors[@]}"; do
+        echo "  $no_op_error" >&2
+    done
+    exit 1
 fi
 
 if ! command -v magick >/dev/null 2>&1; then

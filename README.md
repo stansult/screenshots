@@ -169,11 +169,11 @@ rules.
 | Option group | Montage | Zip | Each | Paginate |
 | --- | :---: | :---: | :---: | :---: |
 | Crop and resize | Yes | Yes | Yes | Yes |
-| Tile, gap, gravity, background | Yes | Yes | Ignored | Rejected |
+| Tile, gap, gravity, background | Yes | Yes | Rejected | Rejected |
 | Trim, border, shadow | Yes | Yes | Yes | Rejected |
-| `--font` | Yes | Yes | Ignored | Header/footer |
+| `--font` | Yes | Yes | Rejected | Header/footer |
 | Pagination options | Rejected | Rejected | Rejected | Yes |
-| `-O`, `--overwrite` | Yes | No effect | No effect | PDF only |
+| `-O`, `--overwrite` | Yes | Rejected | Rejected | PDF only |
 
 Supplying two or more `-i` patterns selects zip mode. `--each` requires exactly
 one input pattern. `--paginate` requires exactly one input occurrence resolving
@@ -245,22 +245,27 @@ All options in this subsection require `--paginate`. `-O` is invalid with
 
 - `--trim` enables final trimming; this is the montage and zip default.
 - `--no-trim` disables final trimming; this is the each-mode default.
-- `--trim-fuzz N` sets trim tolerance as a percentage (default: `0`).
-- `-b`, `--border [N]` adds a border. A bare flag uses width `1`; in montage
-  and zip modes it is applied to individual tiles.
-- `--border-color COLOR` sets border color (default: `black`).
+- `--trim-fuzz N` sets trim tolerance as a percentage (default: `0`) and is
+  rejected when trimming is disabled.
+- `-b`, `--border [N]` adds a border. A bare flag uses width `1`, and an
+  explicit width must be positive; in montage and zip modes it is applied to
+  individual tiles.
+- `--border-color COLOR` sets border color (default: `black`) and requires
+  `--border`.
 - `-s`, `--shadow` adds a drop shadow; disabled by default. It is applied to
   the finalized montage in montage/zip mode and to each output in each mode.
-- `--shadow-color COLOR` sets shadow color (default: `gray`).
+- `--shadow-color COLOR` sets shadow color (default: `gray`) and requires
+  `--shadow`.
 - `--font FILE` selects the font used internally by ImageMagick in montage and
   zip modes, or the visible decoration font in pagination. A system font is
-  discovered automatically when omitted. Each mode accepts but ignores it.
+  discovered automatically when omitted. Each mode rejects it because it does
+  not render text.
 
 ### Execution controls
 
 - `-O`, `--overwrite` overwrites an existing montage or paginated PDF without
-  prompting. It has no effect in zip/each mode and is rejected with
-  `--output-pages`.
+  prompting. It is rejected in zip/each mode, which always create fresh output
+  directories, and with `--output-pages`.
 - `-v`, `--verbose` prints processing details.
 - `-h`, `--help` shows concise general help. Either spelling accepts
   `montage`, `zip`, `each`, or `paginate` for complete mode help.

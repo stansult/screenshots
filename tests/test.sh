@@ -226,6 +226,54 @@ test_zip_count_mismatch() {
     assert_contains "$CASE_DIR/stderr" 'same number of files'
 }
 
+test_no_effect_options_are_rejected() {
+    new_case
+    make_image "$CASE_DIR/a.png" 100x80 red
+    make_image "$CASE_DIR/b.png" 100x80 blue
+
+    run_script -i '*.png' --each --tile 1x1 --gap 1x1 --gravity north \
+        --background white --font "$TEST_FONT" -O
+    [ "$RUN_STATUS" -ne 0 ] || fail 'ignored each-mode options unexpectedly succeeded' || return 1
+    for option in '--tile' '--gap' '--gravity' '--background' '--font' '-O/--overwrite'; do
+        assert_contains "$CASE_DIR/stderr" "$option" || return 1
+    done
+
+    run_script -i '*.png' --each -t 1x1 -g 1x1 -G north
+    [ "$RUN_STATUS" -ne 0 ] || fail 'short ignored each-mode options unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Each mode does not use' || return 1
+
+    run_script -i 'a.png' -i 'b.png' -O
+    [ "$RUN_STATUS" -ne 0 ] || fail '-O unexpectedly succeeded in zip mode' || return 1
+    assert_contains "$CASE_DIR/stderr" 'always creates a fresh output directory' || return 1
+
+    run_script -i 'a.png' -i 'b.png' --shadow-color red
+    [ "$RUN_STATUS" -ne 0 ] || fail 'zip shadow color without shadow unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" '--shadow-color requires --shadow' || return 1
+
+    run_script -i '*.png' --each --trim-fuzz 5
+    [ "$RUN_STATUS" -ne 0 ] || fail 'each trim fuzz without trim unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" '--trim-fuzz requires trimming' || return 1
+
+    run_script -i '*.png' --shadow-color red --border-color blue --no-trim --trim-fuzz 5
+    [ "$RUN_STATUS" -ne 0 ] || fail 'dependent no-effect options unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" '--shadow-color requires --shadow' || return 1
+    assert_contains "$CASE_DIR/stderr" '--border-color requires --border' || return 1
+    assert_contains "$CASE_DIR/stderr" '--trim-fuzz requires trimming' || return 1
+
+    run_script -i '*.png' --border 0
+    [ "$RUN_STATUS" -ne 0 ] || fail '--border 0 unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" '--border 0 adds no border' || return 1
+
+    [ ! -e "$CASE_DIR/output.png" ] || fail 'rejected options created output.png' || return 1
+    [ -z "$(find "$CASE_DIR" -maxdepth 1 -type d \( -name 'each-*' -o -name 'zip-*' \) -print)" ] || \
+        fail 'rejected options created a fresh output directory' || return 1
+
+    run_script -i '*.png' --shadow-color red --shadow --border-color blue \
+        --border --trim-fuzz 5 --trim -o valid.png -O
+    assert_status 0 || return 1
+    assert_file "$CASE_DIR/valid.png"
+}
+
 test_output_excluded_from_inputs() {
     new_case
     make_image "$CASE_DIR/a.png" 100x80 red
@@ -268,7 +316,7 @@ test_general_help() {
 }
 
 test_mode_help_pages() {
-    local topic other long_help selector_help
+    local topic other long_help selector_help crop_option
     new_case
     for topic in montage zip each paginate; do
         run_script --help "$topic"
@@ -282,12 +330,20 @@ test_mode_help_pages() {
         run_script -h "$topic"
         assert_status 0 || return 1
         [ "$long_help" = "$(cat "$CASE_DIR/stdout")" ] || fail "-h and --help differ for $topic" || return 1
+        for crop_option in '--crop-top' '--crop-bottom' '--crop-left' '--crop-right'; do
+            assert_contains "$CASE_DIR/stdout" "$crop_option" || return 1
+        done
+        if [ "$topic" = "zip" ]; then
+            assert_contains "$CASE_DIR/stdout" '-O/--overwrite' || return 1
+        fi
     done
 
     run_script --each --help
     assert_status 0 || return 1
     selector_help="$(cat "$CASE_DIR/stdout")"
     assert_contains "$CASE_DIR/stdout" 'Each mode' || return 1
+    assert_contains "$CASE_DIR/stdout" '-O/--overwrite' || return 1
+    assert_contains "$CASE_DIR/stdout" '-t/--tile' || return 1
     run_script --help --each
     assert_status 0 || return 1
     [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'each help differs by option order' || return 1
@@ -301,6 +357,7 @@ test_mode_help_pages() {
     assert_status 0 || return 1
     selector_help="$(cat "$CASE_DIR/stdout")"
     assert_contains "$CASE_DIR/stdout" 'Paginate mode' || return 1
+    assert_contains "$CASE_DIR/stdout" '-e/--each' || return 1
     run_script --help --paginate
     assert_status 0 || return 1
     [ "$selector_help" = "$(cat "$CASE_DIR/stdout")" ] || fail 'paginate help differs by option order' || return 1
@@ -429,14 +486,12 @@ test_invalid_font() {
     assert_contains "$CASE_DIR/stderr" 'Font file does not exist or is not readable'
 }
 
-test_each_mode_does_not_require_font() {
-    local out_dir
+test_each_mode_rejects_font() {
     new_case
     make_image "$CASE_DIR/a.png" 100x80 red
     run_script -i '*.png' --each --font "$CASE_DIR/missing-font.ttf"
-    assert_status 0 || return 1
-    out_dir="$(latest_directory "$CASE_DIR" 'each-*')"
-    assert_file "$out_dir/a.png"
+    [ "$RUN_STATUS" -ne 0 ] || fail '--font unexpectedly succeeded in each mode'
+    assert_contains "$CASE_DIR/stderr" 'Each mode does not use: --font'
 }
 
 test_paginate_exact_page_boundary() {
@@ -902,6 +957,7 @@ run_test 'resize preserves aspect ratio' test_resize
 run_test 'each mode preserves filenames' test_each_mode_names
 run_test 'zip mode pairs input sets' test_zip_mode
 run_test 'zip mode rejects unequal sets' test_zip_count_mismatch
+run_test 'options with no effect are rejected' test_no_effect_options_are_rejected
 run_test 'output is excluded from input glob' test_output_excluded_from_inputs
 run_test 'invalid arguments are rejected' test_argument_validation
 run_test 'general help is concise and complete' test_general_help
@@ -912,7 +968,7 @@ run_test 'help creates no outputs' test_help_creates_no_outputs
 run_test 'automatic font discovery' test_automatic_font_discovery
 run_test 'explicit font selection' test_explicit_font
 run_test 'invalid font path is rejected' test_invalid_font
-run_test 'each mode does not require a font' test_each_mode_does_not_require_font
+run_test 'each mode rejects font' test_each_mode_rejects_font
 run_test 'paginate exact page boundary' test_paginate_exact_page_boundary
 run_test 'paginate margin and final padding' test_paginate_margin_and_padding
 run_test 'paginate preserves every full-page margin' test_paginate_full_page_margins
