@@ -5,6 +5,25 @@ images with ImageMagick. It can create one montage, pair corresponding images
 from several sets, process every image independently, or split one long
 screenshot into page-sized PDF or PNG output.
 
+## Contents
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Montage mode](#montage-mode)
+  - [Zip mode](#zip-mode)
+  - [Each mode](#each-mode)
+  - [Paginate mode](#paginate-mode)
+- [Option reference](#option-reference)
+  - [Input and output](#input-and-output)
+  - [Sizing and cropping](#sizing-and-cropping)
+  - [Pagination](#pagination)
+  - [Montage layout](#montage-layout)
+  - [Appearance](#appearance)
+  - [Execution controls](#execution-controls)
+  - [Output behavior](#output-behavior)
+- [Troubleshooting](#troubleshooting)
+
 ## Requirements
 
 - Bash 3.2 or newer
