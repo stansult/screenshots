@@ -13,7 +13,8 @@ repository.
 
 The suite checks montage, crop, resize, each, zip, pagination,
 output-exclusion, argument-validation, and font-discovery behavior. Pagination
-coverage includes PDF and PNG output, paper dimensions, margins, overlap,
+coverage includes PDF and PNG output, paper dimensions, uniform and asymmetric
+margins, overlap,
 headers, footers, creation timestamps, preprocessing order, automatic output
 directories, parent-directory selection, atomic replacement, invalid input,
 dependency isolation, complete margin edges, zero-overlap row continuity,

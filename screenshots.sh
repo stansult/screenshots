@@ -232,6 +232,10 @@ Options:
   --output-pages         Write lossless PNG pages instead of PDF
   --paper SIZE           letter (default), a4, or legal; portrait only
   --margin N             Uniform outer margin in output pixels (default: 0)
+  -mt, --margin-top N    Additional top margin in pixels (default: 0)
+  -mr, --margin-right N  Additional right margin in pixels (default: 0)
+  -mb, --margin-bottom N Additional bottom margin in pixels (default: 0)
+  -ml, --margin-left N   Additional left margin in pixels (default: 0)
   --overlap N            Repeated source rows between pages (default: 0;
                          must be smaller than the calculated slice height)
   --header               Add creation date/time at top left
@@ -261,6 +265,7 @@ If ImageMagick cannot write PDF, use --output-pages as the PNG fallback.
 Examples:
   screenshots.sh -i article.png --paginate
   screenshots.sh -i article.png --paginate --paper a4 --margin 40 -o article.pdf
+  screenshots.sh -i article.png --paginate --margin 20 -ml 40 -mr 40
   screenshots.sh -i article.png --paginate --overlap 40 -o article.pdf
   screenshots.sh -i article.png --paginate --output-pages -o exports
   screenshots.sh -i article.png --paginate --header --footer --title "Article"
@@ -288,7 +293,7 @@ handle_help_request() {
                 ;;
             -e|--each) each_seen=true ;;
             -p|--paginate) paginate_seen=true ;;
-            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap|--title|--page-font-size)
+            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
                 if [ $((i + 1)) -lt "$count" ]; then
                     next="${argv[$((i + 1))]}"
                     case "$next" in
@@ -348,7 +353,7 @@ handle_help_request() {
                 done
                 continue
                 ;;
-            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap|--title|--page-font-size)
+            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
                 if [ $((i + 1)) -lt "$count" ]; then
                     next="${argv[$((i + 1))]}"
                     if [ $((i + 1)) -ne "$help_index" ] && \
@@ -455,10 +460,18 @@ each_mode=false
 paginate_mode=false
 paper="letter"
 margin="0"
+margin_top_extra="0"
+margin_right_extra="0"
+margin_bottom_extra="0"
+margin_left_extra="0"
 overlap="0"
 output_set=false
 paper_set=false
 margin_set=false
+margin_top_set=false
+margin_right_set=false
+margin_bottom_set=false
+margin_left_set=false
 overlap_set=false
 output_pages_set=false
 header_set=false
@@ -508,7 +521,7 @@ fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--overlap|--title|--page-font-size)
+        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
             if [ $# -lt 2 ]; then
                 echo "Option $1 requires an argument." >&2
                 echo "Run with --help for usage." >&2
@@ -684,6 +697,42 @@ while [ $# -gt 0 ]; do
             margin_set=true
             shift 2
             ;;
+        -mt|--margin-top)
+            if $margin_top_set; then
+                echo "Option -mt/--margin-top given more than once." >&2
+                exit 1
+            fi
+            margin_top_extra="$2"
+            margin_top_set=true
+            shift 2
+            ;;
+        -mr|--margin-right)
+            if $margin_right_set; then
+                echo "Option -mr/--margin-right given more than once." >&2
+                exit 1
+            fi
+            margin_right_extra="$2"
+            margin_right_set=true
+            shift 2
+            ;;
+        -mb|--margin-bottom)
+            if $margin_bottom_set; then
+                echo "Option -mb/--margin-bottom given more than once." >&2
+                exit 1
+            fi
+            margin_bottom_extra="$2"
+            margin_bottom_set=true
+            shift 2
+            ;;
+        -ml|--margin-left)
+            if $margin_left_set; then
+                echo "Option -ml/--margin-left given more than once." >&2
+                exit 1
+            fi
+            margin_left_extra="$2"
+            margin_left_set=true
+            shift 2
+            ;;
         --overlap)
             overlap="$2"
             overlap_set=true
@@ -771,10 +820,12 @@ elif $zip_mode; then
     mode="zip"
 fi
 
-if ! $paginate_mode && { $paper_set || $margin_set || $overlap_set || $output_pages_set || \
+if ! $paginate_mode && { $paper_set || $margin_set || $margin_top_set || \
+    $margin_right_set || $margin_bottom_set || $margin_left_set || \
+    $overlap_set || $output_pages_set || \
     $header_set || $footer_set || $header_line_set || $footer_line_set || \
     $title_set || $page_font_size_set; }; then
-    echo "--paper, --margin, --overlap, --output-pages, --header, --footer, --header-line, --footer-line, --title, and --page-font-size require --paginate." >&2
+    echo "Pagination options such as --paper, margin options, --overlap, --output-pages, headers, and footers require --paginate." >&2
     exit 1
 fi
 
@@ -988,11 +1039,35 @@ if $paginate_mode; then
         echo "Invalid --margin value: $margin (expected non-negative pixels)" >&2
         exit 1
     fi
+    if ! [[ "$margin_top_extra" =~ ^[0-9]+$ ]]; then
+        echo "Invalid --margin-top value: $margin_top_extra (expected non-negative pixels)" >&2
+        exit 1
+    fi
+    if ! [[ "$margin_right_extra" =~ ^[0-9]+$ ]]; then
+        echo "Invalid --margin-right value: $margin_right_extra (expected non-negative pixels)" >&2
+        exit 1
+    fi
+    if ! [[ "$margin_bottom_extra" =~ ^[0-9]+$ ]]; then
+        echo "Invalid --margin-bottom value: $margin_bottom_extra (expected non-negative pixels)" >&2
+        exit 1
+    fi
+    if ! [[ "$margin_left_extra" =~ ^[0-9]+$ ]]; then
+        echo "Invalid --margin-left value: $margin_left_extra (expected non-negative pixels)" >&2
+        exit 1
+    fi
     if ! [[ "$overlap" =~ ^[0-9]+$ ]]; then
         echo "Invalid --overlap value: $overlap (expected non-negative pixels)" >&2
         exit 1
     fi
     margin=$((10#$margin))
+    margin_top_extra=$((10#$margin_top_extra))
+    margin_right_extra=$((10#$margin_right_extra))
+    margin_bottom_extra=$((10#$margin_bottom_extra))
+    margin_left_extra=$((10#$margin_left_extra))
+    margin_top=$((margin + margin_top_extra))
+    margin_right=$((margin + margin_right_extra))
+    margin_bottom=$((margin + margin_bottom_extra))
+    margin_left=$((margin + margin_left_extra))
     overlap=$((10#$overlap))
     if ! [[ "$page_font_size" =~ ^[0-9]+(\.[0-9]+)?$ ]] || \
         ! LC_ALL=C awk -v size="$page_font_size" 'BEGIN { exit !(size > 0 && size < 24) }'; then
@@ -1278,21 +1353,22 @@ render_fitted_title() {
 render_page_png() {
     local source="$1" destination="$2" source_width="$3"
     local source_start="$4" source_height="$5" canvas_width="$6"
-    local canvas_height="$7" page_margin="$8" density="$9"
-    local header_height="${10}" footer_height="${11}" created_text="${12}"
-    local page_label="${13}" page_title="${14}" labels_dir="${15}"
-    local decoration_inset="${16}" decoration_left decoration_right
-    local rule_width="${17}" rule_y
+    local canvas_height="$7" page_margin_top="$8" page_margin_right="$9"
+    local page_margin_bottom="${10}" page_margin_left="${11}" density="${12}"
+    local header_height="${13}" footer_height="${14}" created_text="${15}"
+    local page_label="${16}" page_title="${17}" labels_dir="${18}"
+    local decoration_inset="${19}" decoration_left decoration_right
+    local rule_width="${20}" rule_y
     local content_top label dimensions label_width label_height label_x label_y
     local title_label title_max title_gap
 
-    content_top=$((page_margin + header_height))
-    decoration_left=$((page_margin + decoration_inset))
-    decoration_right=$((canvas_width - page_margin - decoration_inset))
+    content_top=$((page_margin_top + header_height))
+    decoration_left=$((page_margin_left + decoration_inset))
+    decoration_right=$((canvas_width - page_margin_right - decoration_inset))
     magick -units PixelsPerInch -density "$density" \
         -size "${canvas_width}x${canvas_height}" xc:white \
         \( "$source" -crop "${source_width}x${source_height}+0+${source_start}" +repage \) \
-        -geometry "+${page_margin}+${content_top}" -composite "$destination"
+        -geometry "+${page_margin_left}+${content_top}" -composite "$destination"
 
     if $header_line_set; then
         rule_y=$((content_top - 1))
@@ -1301,7 +1377,7 @@ render_page_png() {
             "$destination"
     fi
     if $footer_line_set; then
-        rule_y=$((canvas_height - page_margin - footer_height))
+        rule_y=$((canvas_height - page_margin_bottom - footer_height))
         magick "$destination" -stroke '#d0d0d0' -strokewidth "$rule_width" \
             -draw "line ${decoration_left},${rule_y} ${decoration_right},${rule_y}" \
             "$destination"
@@ -1311,7 +1387,7 @@ render_page_png() {
         label="$labels_dir/header-date.png"
         render_text_label "$created_text" "$label" "$density"
         dimensions="$(get_pixel_size "$label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
-        label_y=$((page_margin + (header_height - label_height) / 2))
+        label_y=$((page_margin_top + (header_height - label_height) / 2))
         magick "$destination" "$label" -geometry "+${decoration_left}+${label_y}" -composite "$destination"
         if [ -n "$page_title" ]; then
             title_gap=$((label_height > 0 ? label_height : 1))
@@ -1320,7 +1396,7 @@ render_page_png() {
             if render_fitted_title "$page_title" "$title_label" "$density" "$title_max"; then
                 dimensions="$(get_pixel_size "$title_label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
                 label_x=$((decoration_right - label_width))
-                label_y=$((page_margin + (header_height - label_height) / 2))
+                label_y=$((page_margin_top + (header_height - label_height) / 2))
                 magick "$destination" "$title_label" -geometry "+${label_x}+${label_y}" -composite "$destination"
             fi
         fi
@@ -1330,7 +1406,7 @@ render_page_png() {
         render_text_label "$page_label" "$label" "$density"
         dimensions="$(get_pixel_size "$label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
         label_x=$((decoration_right - label_width))
-        label_y=$((canvas_height - page_margin - footer_height + (footer_height - label_height) / 2))
+        label_y=$((canvas_height - page_margin_bottom - footer_height + (footer_height - label_height) / 2))
         magick "$destination" "$label" -geometry "+${label_x}+${label_y}" -composite "$destination"
     fi
 }
@@ -1435,7 +1511,7 @@ run_paginate() {
         a4) paper_width="595.2756"; paper_height="841.8898" ;;
         legal) paper_width="612"; paper_height="1008" ;;
     esac
-    canvas_width=$((source_width + 2 * margin))
+    canvas_width=$((source_width + margin_left + margin_right))
     canvas_height="$(LC_ALL=C awk -v width="$canvas_width" -v pw="$paper_width" \
         -v ph="$paper_height" 'BEGIN { printf "%d", (width * ph / pw) + 0.5 }')"
     density="$(LC_ALL=C awk -v width="$canvas_width" -v height="$canvas_height" \
@@ -1459,7 +1535,7 @@ run_paginate() {
         echo "Page dimensions are too small to render the requested header or footer." >&2
         return 1
     fi
-    slice_height=$((canvas_height - 2 * margin - header_height - footer_height))
+    slice_height=$((canvas_height - margin_top - margin_bottom - header_height - footer_height))
     if [ "$slice_height" -le 0 ]; then
         echo "Margins and header/footer bands leave no usable screenshot area." >&2
         return 1
@@ -1479,7 +1555,7 @@ run_paginate() {
         page_digits=3
     fi
 
-    log "Paginate: paper=$paper margin=${margin}px source=${source_width}x${source_height}"
+    log "Paginate: paper=$paper margins=${margin_top}/${margin_right}/${margin_bottom}/${margin_left}px source=${source_width}x${source_height}"
     log "Paginate: canvas=${canvas_width}x${canvas_height} slice=${slice_height}px overlap=${overlap}px pages=$page_count"
     log "Paginate: header=${header_height}px footer=${footer_height}px font=${page_font_size}pt inset=${decoration_inset}px lines=${header_line_set}/${footer_line_set} created='${created_text}'"
 
@@ -1581,7 +1657,8 @@ run_paginate() {
         page_path="$(printf "%s/page-%0*d.png" "$staging" "$page_digits" "$page_number")"
         log "Page $page_number: source rows [$start,$end)"
         render_page_png "$prepared" "$page_path" "$source_width" "$start" \
-            "$current_height" "$canvas_width" "$canvas_height" "$margin" "$density" \
+            "$current_height" "$canvas_width" "$canvas_height" \
+            "$margin_top" "$margin_right" "$margin_bottom" "$margin_left" "$density" \
             "$header_height" "$footer_height" "$created_text" \
             "${page_number}/${page_count}" "$title" "$paginate_work" \
             "$decoration_inset" "$rule_width"

@@ -14,21 +14,25 @@ Let:
 ```text
 PW = paper width in PDF points
 PH = paper height in PDF points
-M  = uniform outer margin in output pixels
+MT = effective top margin in output pixels
+MR = effective right margin in output pixels
+MB = effective bottom margin in output pixels
+ML = effective left margin in output pixels
 W  = preprocessed screenshot width in pixels
 H  = preprocessed screenshot height in pixels
-CW = W + 2M
+CW = W + ML + MR
 CH = round(CW * PH / PW)
 HB = header-band height in pixels, or 0
 FB = footer-band height in pixels, or 0
-S  = CH - 2M - HB - FB
+S  = CH - MT - MB - HB - FB
 O  = overlap in source pixels
 T  = S - O
 ```
 
-`CW` and `CH` are the output canvas dimensions. `S` is the number of source
-rows on a full page and `T` is the source-row advance. Both must be positive;
-overlap must therefore be smaller than `S`.
+Each effective side margin is the uniform `--margin` plus that side's optional
+additional margin. `CW` and `CH` are the output canvas dimensions. `S` is the
+number of source rows on a full page and `T` is the source-row advance. Both
+must be positive; overlap must therefore be smaller than `S`.
 
 Header and footer bands are 24 PDF points high. Their text inset is 12 points
 and separator rules are 0.25 points. Convert these physical measurements to
@@ -56,7 +60,7 @@ the source ends exactly on a page boundary.
 ## Raster construction and physical size
 
 Every page is an opaque white `CW` by `CH` PNG. Place each unscaled screenshot
-slice at `(M, M + HB)`. White canvas space supplies the outer margins,
+slice at `(ML, MT + HB)`. White canvas space supplies the outer margins,
 decoration bands, and final-page padding. Never trim a generated page.
 
 Use independent horizontal and vertical density values:
@@ -100,7 +104,6 @@ Pagination does not provide:
 - whitespace-aware or content-aware page breaks;
 - automatic avoidance of split text or images;
 - landscape orientation or custom paper dimensions;
-- different margins for individual sides;
 - watermarks or transparent page backgrounds;
 - multiple-input or batch PDF production;
 - replacement or merging of an existing PNG page directory; or

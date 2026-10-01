@@ -228,6 +228,9 @@ to one readable, regular, non-symlink, single-frame raster image.
 
 - `--paper SIZE` selects `letter` (default), `a4`, or `legal`.
 - `--margin N` adds `N` white output pixels on every side (default: `0`).
+- `-mt`/`--margin-top N`, `-mr`/`--margin-right N`,
+  `-mb`/`--margin-bottom N`, and `-ml`/`--margin-left N` add pixels to the
+  corresponding side in addition to `--margin` (default: `0` each).
 - `--overlap N` repeats `N` preprocessed source rows between pages (default:
   `0`); it must be smaller than the calculated slice height.
 - `--header` adds a 6-point creation date/time header.
@@ -241,8 +244,10 @@ to one readable, regular, non-symlink, single-frame raster image.
   or `--footer`; a system font is discovered automatically when omitted.
 
 Headers and footers use 24-point bands and a 12-point horizontal text inset.
-These reserved bands and the outer margin remain inside the selected paper
-ratio.
+These reserved bands and all four outer margins remain inside the selected
+paper ratio. Increasing left/right margins widens the fixed-ratio canvas and
+can reduce the page count; increasing top/bottom margins consumes vertical
+capacity and can increase it.
 
 All options in this subsection require `--paginate`. `-O` is invalid with
 `--output-pages`; PNG page directories are never overwritten or merged.

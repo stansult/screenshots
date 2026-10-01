@@ -336,6 +336,11 @@ test_mode_help_pages() {
         if [ "$topic" = "zip" ]; then
             assert_contains "$CASE_DIR/stdout" '-O/--overwrite' || return 1
         fi
+        if [ "$topic" = "paginate" ]; then
+            for margin_option in '--margin-top' '--margin-right' '--margin-bottom' '--margin-left'; do
+                assert_contains "$CASE_DIR/stdout" "$margin_option" || return 1
+            done
+        fi
     done
 
     run_script --each --help
@@ -538,6 +543,67 @@ test_paginate_full_page_margins() {
     assert_pixel_rgb "$page" 10,145 '255,255,255'
 }
 
+test_paginate_asymmetric_margins() {
+    local pages_dir page count
+    new_case
+    make_image "$CASE_DIR/long.png" 100x300 red
+    assert_dimensions "$CASE_DIR/long.png" 100x300 || return 1
+    assert_pixel_rgb "$CASE_DIR/long.png" 0,0 '255,0,0' || return 1
+    run_script -i long.png --paginate --margin 10 --margin-top 5 -mb 7 \
+        --margin-left 20 -mr 30 --output-pages -v
+    assert_status 0 || return 1
+    pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
+    page="$pages_dir/page-001.png"
+    assert_dimensions "$page" 170x220 || return 1
+    assert_pixel_rgb "$page" 29,15 '255,255,255' || return 1
+    assert_pixel_rgb "$page" 30,14 '255,255,255' || return 1
+    assert_pixel_rgb "$page" 30,15 '255,0,0' || return 1
+    assert_pixel_rgb "$page" 129,202 '255,0,0' || return 1
+    assert_pixel_rgb "$page" 130,202 '255,255,255' || return 1
+    assert_pixel_rgb "$page" 30,203 '255,255,255' || return 1
+    count="$(find "$pages_dir" -maxdepth 1 -type f -name 'page-*.png' | wc -l | tr -d ' ')"
+    [ "$count" -eq 2 ] || fail "expected 2 asymmetrically margined pages, got $count" || return 1
+    assert_contains "$CASE_DIR/stderr" 'margins=15/40/17/30px' || return 1
+}
+
+test_paginate_side_margin_capacity_and_validation() {
+    local pages_dir count
+    new_case
+    make_image "$CASE_DIR/long.png" 100x500 blue
+
+    run_script -i long.png --paginate -ml 50 -mr 50 --output-pages
+    assert_status 0 || return 1
+    pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
+    count="$(find "$pages_dir" -maxdepth 1 -type f -name 'page-*.png' | wc -l | tr -d ' ')"
+    [ "$count" -eq 2 ] || fail "expected horizontal margins to produce 2 pages, got $count" || return 1
+
+    run_script -i long.png --paginate -mt 30 -mb 30 --output-pages
+    assert_status 0 || return 1
+    pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
+    count="$(find "$pages_dir" -maxdepth 1 -type f -name 'page-*.png' | wc -l | tr -d ' ')"
+    [ "$count" -eq 8 ] || fail "expected vertical margins to produce 8 pages, got $count" || return 1
+
+    run_script -i long.png --paginate --margin-top nope --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'nonnumeric side margin unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Invalid --margin-top value' || return 1
+
+    run_script -i long.png --paginate --margin-bottom -1 --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'negative side margin unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Invalid --margin-bottom value' || return 1
+
+    run_script -i long.png --paginate --margin-left 1 --margin-left 2 --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'repeated side margin unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'given more than once' || return 1
+
+    run_script -i long.png --margin-right 10
+    [ "$RUN_STATUS" -ne 0 ] || fail 'side margin without pagination unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'require --paginate' || return 1
+
+    run_script -i long.png --paginate -mt 100 -mb 100 --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'impossible vertical margins unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'leave no usable screenshot area'
+}
+
 test_paginate_zero_overlap_coverage() {
     local pages_dir first_last second_first source_first source_second
     new_case
@@ -674,6 +740,27 @@ test_paginate_header_footer_options() {
     run_script -i a.png --paginate --footer-line --output-pages
     [ "$RUN_STATUS" -ne 0 ] || fail '--footer-line without --footer unexpectedly succeeded'
     assert_contains "$CASE_DIR/stderr" '--footer-line requires --footer'
+}
+
+test_paginate_decorations_respect_asymmetric_margins() {
+    local pages_dir page
+    new_case
+    make_image "$CASE_DIR/screencapture-example-2026-09-10-23_52_17.png" 100x200 red
+    assert_dimensions "$CASE_DIR/screencapture-example-2026-09-10-23_52_17.png" 100x200 || return 1
+    assert_pixel_rgb "$CASE_DIR/screencapture-example-2026-09-10-23_52_17.png" 0,0 '255,0,0' || return 1
+    run_script -i screencapture-example-2026-09-10-23_52_17.png --paginate \
+        --header --footer --header-line --footer-line \
+        -mt 10 -mr 30 -mb 15 -ml 20 --output-pages
+    assert_status 0 || return 1
+    pages_dir="$(latest_directory "$CASE_DIR" 'pages-*')"
+    page="$pages_dir/page-001.png"
+    assert_dimensions "$page" 150x194 || return 1
+    assert_pixel_rgb "$page" 19,16 '255,255,255' || return 1
+    assert_pixel_rgb "$page" 20,16 '255,0,0' || return 1
+    assert_pixel_rgb "$page" 119,172 '255,0,0' || return 1
+    assert_pixel_rgb "$page" 120,172 '255,255,255' || return 1
+    assert_region_not_white "$page" '95x1+23+15' || return 1
+    assert_region_not_white "$page" '95x1+23+173'
 }
 
 test_paginate_timestamp_priority() {
@@ -972,6 +1059,8 @@ run_test 'each mode rejects font' test_each_mode_rejects_font
 run_test 'paginate exact page boundary' test_paginate_exact_page_boundary
 run_test 'paginate margin and final padding' test_paginate_margin_and_padding
 run_test 'paginate preserves every full-page margin' test_paginate_full_page_margins
+run_test 'paginate supports asymmetric margins' test_paginate_asymmetric_margins
+run_test 'paginate validates side-margin capacity' test_paginate_side_margin_capacity_and_validation
 run_test 'paginate overlap repeats source rows' test_paginate_overlap
 run_test 'paginate zero overlap covers each row once' test_paginate_zero_overlap_coverage
 run_test 'paginate preprocesses before geometry' test_paginate_preprocesses_before_geometry
@@ -980,6 +1069,7 @@ run_test 'paginate creates short Letter PDF' test_paginate_short_letter_pdf
 run_test 'paginate derives default PDF name' test_paginate_default_pdf_name
 run_test 'paginate renders header and footer' test_paginate_header_footer_layout
 run_test 'paginate validates header/footer options' test_paginate_header_footer_options
+run_test 'paginate decorations respect side margins' test_paginate_decorations_respect_asymmetric_margins
 run_test 'paginate selects timestamp by priority' test_paginate_timestamp_priority
 run_test 'paginate expands page-number width' test_paginate_page_number_width_logic
 run_test 'paginate rejects invalid combinations' test_paginate_rejects_invalid_combinations
