@@ -236,6 +236,8 @@ to one readable, regular, non-symlink, single-frame raster image.
 
 ### Pagination
 
+![Examples of pagination paper and margins, header and footer decorations, and page overlap](docs/images/pagination-options.svg)
+
 - `--paper SIZE` selects `letter` (default), `a4`, or `legal`.
 - `--margin N` adds `N` white output pixels on every side (default: `0`).
 - `-mt`/`--margin-top N`, `-mr`/`--margin-right N`,

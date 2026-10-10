@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1140" viewBox="0 0 1200 1140" role="img" aria-labelledby="title desc">
+  <title id="title">Pagination options</title>
+  <desc id="desc">Paper sizes, additive margins, header and footer bands, and source rows repeated by page overlap.</desc>
+  <rect width="1200" height="1140" rx="24" fill="#f6f8fa"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text x="600" y="44" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">PAGINATION OPTIONS</text>
+    <path d="M40 295h1120M40 545h1120M40 835h1120" stroke="#d0d7de" stroke-width="2"/>
+
+    <text x="75" y="108" font-size="18" font-weight="700" fill="#0969da">PAPER SIZE</text>
+    <text x="75" y="136" font-size="15" fill="#57606a">--paper SIZE</text>
+    <text x="75" y="159" font-size="15" fill="#57606a">portrait only</text>
+    <g transform="translate(380 90)">
+      <rect width="116" height="150" rx="7" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="12" y="14" width="92" height="42" rx="4" fill="#ddf4ff"/><rect x="12" y="71" width="68" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="89" width="92" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="58" y="174" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">letter</text>
+      <text x="58" y="194" text-anchor="middle" font-size="13" fill="#57606a">8.5 × 11</text>
+    </g>
+    <g transform="translate(585 85)">
+      <rect width="110" height="156" rx="7" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="12" y="14" width="86" height="44" rx="4" fill="#dafbe1"/><rect x="12" y="73" width="65" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="91" width="86" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="55" y="179" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">a4</text>
+      <text x="55" y="199" text-anchor="middle" font-size="13" fill="#57606a">210 × 297 mm</text>
+    </g>
+    <g transform="translate(790 56)">
+      <rect width="116" height="186" rx="7" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="12" y="14" width="92" height="52" rx="4" fill="#fff8c5"/><rect x="12" y="81" width="68" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="99" width="92" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="58" y="209" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">legal</text>
+      <text x="58" y="229" text-anchor="middle" font-size="13" fill="#57606a">8.5 × 14</text>
+    </g>
+
+    <text x="75" y="355" font-size="18" font-weight="700" fill="#0969da">MARGINS</text>
+    <text x="75" y="383" font-size="15" fill="#57606a">--margin N</text>
+    <text x="75" y="406" font-size="15" fill="#57606a">plus optional additions</text>
+    <text x="75" y="429" font-size="15" fill="#57606a">for individual sides</text>
+    <g transform="translate(510 307)">
+      <rect width="180" height="220" rx="8" fill="#ffe3e6" stroke="#0969da" stroke-width="4"/>
+      <rect x="36" y="43" width="108" height="132" rx="4" fill="#fff"/>
+      <rect x="50" y="58" width="80" height="102" rx="4" fill="#ddf4ff"/>
+      <rect x="61" y="72" width="58" height="39" rx="4" fill="#80ccff"/><rect x="61" y="126" width="45" height="6" rx="3" fill="#54aeff"/><rect x="61" y="142" width="58" height="6" rx="3" fill="#b6e3ff"/>
+      <path d="M25 31h130v158H25z" fill="none" stroke="#cf222e" stroke-width="2" stroke-dasharray="7 6"/>
+      <text x="90" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#57606a">--margin-top</text>
+      <text x="164" y="111" text-anchor="middle" font-size="13" font-weight="700" fill="#57606a" transform="rotate(90 164 111)">--margin-right</text>
+      <text x="90" y="210" text-anchor="middle" font-size="13" font-weight="700" fill="#57606a">--margin-bottom</text>
+      <text x="16" y="111" text-anchor="middle" font-size="13" font-weight="700" fill="#57606a" transform="rotate(-90 16 111)">--margin-left</text>
+    </g>
+    <path d="M450 352h80m-10-10 10 10-10 10" fill="none" stroke="#cf222e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="440" y="355" text-anchor="end" font-size="14" font-weight="700" fill="#cf222e">base --margin</text>
+    <text x="760" y="382" font-size="15" fill="#57606a">Side-specific values add to</text>
+    <text x="760" y="405" font-size="15" fill="#57606a">the base margin; they do not</text>
+    <text x="760" y="428" font-size="15" fill="#57606a">replace it.</text>
+
+    <text x="75" y="620" font-size="18" font-weight="700" fill="#0969da">HEADER AND FOOTER</text>
+    <text x="75" y="648" font-size="15" fill="#57606a">optional print-style bands</text>
+    <g transform="translate(490 570)">
+      <rect width="220" height="245" rx="8" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="2" y="2" width="216" height="45" rx="6" fill="#ddf4ff"/>
+      <text x="12" y="24" font-size="9" fill="#57606a">Sep 10, 2026 · 11:52 PM</text>
+      <text x="208" y="24" text-anchor="end" font-size="9" font-weight="600" fill="#57606a">Title</text>
+      <path d="M12 46h196M12 205h196" stroke="#d0d7de" stroke-width="2"/>
+      <rect x="20" y="63" width="180" height="69" rx="5" fill="#b6e3ff"/>
+      <rect x="20" y="149" width="131" height="7" rx="3.5" fill="#afb8c1"/><rect x="20" y="167" width="180" height="7" rx="3.5" fill="#d0d7de"/>
+      <rect x="2" y="206" width="216" height="37" rx="6" fill="#f6f8fa"/>
+      <text x="208" y="230" text-anchor="end" font-size="10" font-weight="600" fill="#57606a">1 / 3</text>
+    </g>
+    <text x="460" y="570" text-anchor="end" font-size="14" font-weight="700" fill="#0969da">--header</text>
+    <text x="460" y="595" text-anchor="end" font-size="14" fill="#57606a">date/time + --title</text>
+    <path d="M470 590h25" stroke="#57606a" stroke-width="2"/>
+    <text x="460" y="781" text-anchor="end" font-size="14" fill="#57606a">--footer-line</text>
+    <path d="M470 775h20" stroke="#57606a" stroke-width="2"/>
+    <text x="740" y="622" font-size="14" fill="#57606a">--header-line</text>
+    <path d="M710 617h20" stroke="#57606a" stroke-width="2"/>
+    <text x="740" y="775" font-size="14" font-weight="700" fill="#0969da">--footer</text>
+    <text x="740" y="800" font-size="14" fill="#57606a">page / total-pages</text>
+    <path d="M705 797h25" stroke="#57606a" stroke-width="2"/>
+    <text x="940" y="633" font-size="15" fill="#57606a">--page-font-size and --font</text>
+    <text x="940" y="656" font-size="15" fill="#57606a">customize decoration text.</text>
+
+    <text x="75" y="900" font-size="18" font-weight="700" fill="#0969da">PAGE OVERLAP</text>
+    <text x="75" y="928" font-size="15" fill="#57606a">--overlap N repeats the same</text>
+    <text x="75" y="951" font-size="15" fill="#57606a">source rows on adjacent pages</text>
+    <g transform="translate(350 852)">
+      <rect width="105" height="210" rx="7" fill="#fff" stroke="#8c959f" stroke-width="3"/>
+      <rect x="12" y="15" width="81" height="45" rx="4" fill="#b6e3ff"/><rect x="12" y="73" width="61" height="6" rx="3" fill="#afb8c1"/>
+      <rect x="12" y="91" width="81" height="37" rx="4" fill="#d8b9ff"/>
+      <rect x="12" y="142" width="81" height="45" rx="4" fill="#dafbe1"/>
+      <path d="M-9 5h123v123H-9z" fill="none" stroke="#0969da" stroke-width="3" stroke-dasharray="7 6"/>
+      <path d="M-5 93h123v113H-5z" fill="none" stroke="#1a7f37" stroke-width="3" stroke-dasharray="7 6"/>
+      <text x="-18" y="25" text-anchor="end" font-size="13" font-weight="700" fill="#0969da">slice 1</text>
+      <text x="-18" y="190" text-anchor="end" font-size="13" font-weight="700" fill="#1a7f37">slice 2</text>
+    </g>
+    <path d="M500 955h80m-18-18 18 18-18 18" fill="none" stroke="#57606a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(640 865)">
+      <rect width="130" height="180" rx="8" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="14" y="16" width="102" height="45" rx="4" fill="#b6e3ff"/><rect x="14" y="76" width="76" height="6" rx="3" fill="#afb8c1"/>
+      <rect x="14" y="127" width="102" height="37" rx="4" fill="#d8b9ff"/>
+      <text x="65" y="174" text-anchor="middle" font-size="13" font-weight="700" fill="#0969da">page 1</text>
+    </g>
+    <g transform="translate(800 865)">
+      <rect width="130" height="180" rx="8" fill="#fff" stroke="#1a7f37" stroke-width="4"/>
+      <rect x="14" y="16" width="102" height="37" rx="4" fill="#d8b9ff"/>
+      <rect x="14" y="79" width="102" height="45" rx="4" fill="#dafbe1"/><rect x="14" y="139" width="78" height="6" rx="3" fill="#afb8c1"/>
+      <text x="65" y="174" text-anchor="middle" font-size="13" font-weight="700" fill="#1a7f37">page 2</text>
+    </g>
+    <text x="1050" y="928" text-anchor="middle" font-size="15" font-weight="700" fill="#8250df">same source rows</text>
+    <text x="1050" y="951" text-anchor="middle" font-size="15" fill="#57606a">appear at the bottom of page 1</text>
+    <text x="1050" y="974" text-anchor="middle" font-size="15" fill="#57606a">and the top of page 2</text>
+
+    <text x="600" y="1115" text-anchor="middle" font-size="15" font-weight="600" fill="#57606a">Margins and decoration bands stay inside the selected paper ratio.</text>
+  </g>
+</svg>
