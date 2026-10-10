@@ -275,6 +275,8 @@ All options in this subsection require `--paginate`. `-O` is invalid with
 
 ### Appearance
 
+![One screenshot shown with whitespace retained, trimmed, bordered, and shadowed](docs/images/appearance-options.svg)
+
 - `--trim` enables final trimming; this is the montage and zip default.
 - `--no-trim` disables final trimming; this is the each-mode default.
 - `--trim-fuzz N` sets trim tolerance as a percentage (default: `0`) and is
