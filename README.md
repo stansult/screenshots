@@ -83,6 +83,10 @@ One input pattern produces a single grid image. Matches are pathname-sorted.
 The default output is `output.png`; when the output itself matches the input
 pattern, it is excluded from the inputs.
 
+```text
+[A] [B] [C]  →  [ A | B | C ]
+```
+
 ```bash
 screenshots.sh -i "usage*.png" -o usage-grid.png
 screenshots.sh -i "usage*.png" -c 50 --width 750 --shadow
@@ -95,6 +99,11 @@ Two or more input patterns enable zip mode. Each pattern is independently
 sorted bytewise, then files at matching positions are placed together in a
 montage. Every pattern must match the same number of files, and pattern order
 determines the left-to-right order within each montage.
+
+```text
+[A1] [A2]       [ A1 | B1 ]
+[B1] [B2]   →   [ A2 | B2 ]
+```
 
 ```bash
 screenshots.sh \
@@ -112,6 +121,10 @@ tile layout overrides that default, but its column count is capped at N.
 Each mode transforms every matched image separately without creating a
 montage:
 
+```text
+[A] [B] [C]  →  [A′] [B′] [C′]
+```
+
 ```bash
 screenshots.sh -i "usage/*.png" --each -c 50 --width 750
 ```
@@ -124,6 +137,10 @@ Results retain their original filenames and are written to a new timestamped
 Paginate mode accepts exactly one single-frame raster image. It slices the
 image from top to bottom into portrait Letter, A4, or Legal pages. Output is
 raster-only and no OCR or text layer is added.
+
+```text
+[ tall image ]  →  [page 1] [page 2] [page 3]
+```
 
 Without an explicit output, the PDF is written beside the source using the
 source basename:
