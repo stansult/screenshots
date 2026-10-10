@@ -198,9 +198,13 @@ rules.
 | Crop and resize | Yes | Yes | Yes | Yes |
 | Tile, gap, gravity, background | Yes | Yes | Rejected | Rejected |
 | Trim, border, shadow | Yes | Yes | Yes | Rejected |
-| `--font` | Yes | Yes | Rejected | Header/footer |
+| `--font` | Yes\* | Yes\* | Rejected | Header/footer |
 | Pagination options | Rejected | Rejected | Rejected | Yes |
 | `-O`, `--overwrite` | Yes | Rejected | Rejected | PDF only |
+
+\* Montage and zip do not draw visible text, but ImageMagick's `montage`
+command still initializes text rendering and can fail without a usable font.
+The script discovers one automatically; `--font FILE` overrides that choice.
 
 Supplying two or more `-i` patterns selects zip mode. `--each` requires exactly
 one input pattern. `--paginate` requires exactly one input occurrence resolving
