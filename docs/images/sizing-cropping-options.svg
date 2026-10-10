@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="title desc">
+  <title id="title">Sizing and cropping options</title>
+  <desc id="desc">Examples of proportional resizing, uniform cropping, and different crop amounts on individual sides.</desc>
+  <rect width="1200" height="460" rx="24" fill="#f6f8fa"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text x="600" y="44" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">SIZING AND CROPPING</text>
+    <path d="M400 70v310M800 70v310" stroke="#d0d7de" stroke-width="2"/>
+
+    <text x="200" y="82" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">PROPORTIONAL RESIZE</text>
+    <g transform="translate(55 112)">
+      <rect width="112" height="210" rx="9" fill="#fff" stroke="#8c959f" stroke-width="3"/>
+      <rect x="1.5" y="1.5" width="109" height="25" rx="7" fill="#ddf4ff"/>
+      <rect x="12" y="42" width="88" height="62" rx="5" fill="#80ccff"/><rect x="12" y="121" width="66" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="139" width="88" height="7" rx="3.5" fill="#d0d7de"/><rect x="12" y="157" width="77" height="7" rx="3.5" fill="#d0d7de"/>
+    </g>
+    <path d="M182 217h58m-15-15 15 15-15 15" fill="none" stroke="#57606a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="263" y="144" width="100" height="146" rx="5" fill="none" stroke="#8c959f" stroke-width="2" stroke-dasharray="6 5"/>
+    <path d="M263 135h100M263 130v10M363 130v10M372 144v146M367 144h10M367 290h10" fill="none" stroke="#57606a" stroke-width="2"/>
+    <text x="313" y="125" text-anchor="middle" font-size="13" fill="#57606a">maximum width</text>
+    <text x="384" y="217" text-anchor="middle" font-size="13" fill="#57606a" transform="rotate(90 384 217)">maximum height</text>
+    <g transform="translate(274 144)">
+      <rect width="78" height="146" rx="6" fill="#fff" stroke="#0969da" stroke-width="3"/>
+      <rect x="1.5" y="1.5" width="75" height="18" rx="4" fill="#ddf4ff"/><rect x="9" y="30" width="60" height="42" rx="3" fill="#80ccff"/><rect x="9" y="85" width="46" height="5" rx="2.5" fill="#afb8c1"/><rect x="9" y="98" width="60" height="5" rx="2.5" fill="#d0d7de"/>
+    </g>
+    <text x="200" y="355" text-anchor="middle" font-size="17" font-weight="700" fill="#0969da">--width / --height</text>
+    <text x="200" y="379" text-anchor="middle" font-size="15" fill="#57606a">maximum width and height</text>
+    <text x="200" y="399" text-anchor="middle" font-size="15" fill="#57606a">aspect ratio stays unchanged</text>
+
+    <text x="600" y="82" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">UNIFORM CROP</text>
+    <g transform="translate(445 112)">
+      <rect width="124" height="210" rx="9" fill="#ffe3e6" stroke="#8c959f" stroke-width="3"/>
+      <rect x="14" y="18" width="96" height="174" rx="6" fill="#ddf4ff"/>
+      <rect x="25" y="35" width="74" height="60" rx="5" fill="#80ccff"/><rect x="25" y="111" width="55" height="7" rx="3.5" fill="#54aeff"/><rect x="25" y="129" width="74" height="7" rx="3.5" fill="#b6e3ff"/><rect x="25" y="147" width="65" height="7" rx="3.5" fill="#b6e3ff"/>
+      <path d="M14 18h96v174H14z" fill="none" stroke="#cf222e" stroke-width="2" stroke-dasharray="6 5"/>
+    </g>
+    <path d="M584 217h58m-15-15 15 15-15 15" fill="none" stroke="#57606a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(672 130)">
+      <rect width="96" height="174" rx="7" fill="#ddf4ff" stroke="#0969da" stroke-width="3"/>
+      <rect x="11" y="17" width="74" height="60" rx="5" fill="#80ccff"/><rect x="11" y="93" width="55" height="7" rx="3.5" fill="#54aeff"/><rect x="11" y="111" width="74" height="7" rx="3.5" fill="#b6e3ff"/><rect x="11" y="129" width="65" height="7" rx="3.5" fill="#b6e3ff"/>
+    </g>
+    <text x="600" y="355" text-anchor="middle" font-size="17" font-weight="700" fill="#0969da">-c / --crop</text>
+    <text x="600" y="379" text-anchor="middle" font-size="15" fill="#57606a">removes the same amount</text>
+    <text x="600" y="399" text-anchor="middle" font-size="15" fill="#57606a">from every side</text>
+
+    <text x="1000" y="82" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">SIDE-SPECIFIC CROP</text>
+    <g transform="translate(842 112)">
+      <rect width="126" height="210" rx="9" fill="#ffe3e6" stroke="#8c959f" stroke-width="3"/>
+      <rect x="9" y="29" width="103" height="148" rx="6" fill="#ddf4ff"/>
+      <rect x="20" y="46" width="81" height="55" rx="5" fill="#80ccff"/><rect x="20" y="117" width="60" height="7" rx="3.5" fill="#54aeff"/><rect x="20" y="135" width="81" height="7" rx="3.5" fill="#b6e3ff"/>
+      <path d="M9 29h103v148H9z" fill="none" stroke="#cf222e" stroke-width="2" stroke-dasharray="6 5"/>
+      <text x="63" y="20" text-anchor="middle" font-size="13" font-weight="700" fill="#cf222e">--crop-top</text>
+      <text x="127" y="108" text-anchor="middle" font-size="13" font-weight="700" fill="#cf222e" transform="rotate(90 127 108)">--crop-right</text>
+      <text x="63" y="199" text-anchor="middle" font-size="13" font-weight="700" fill="#cf222e">--crop-bottom</text>
+      <text x="-1" y="108" text-anchor="middle" font-size="13" font-weight="700" fill="#cf222e" transform="rotate(-90 -1 108)">--crop-left</text>
+    </g>
+    <path d="M983 217h48m-14-14 14 14-14 14" fill="none" stroke="#57606a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(1058 141)">
+      <rect width="103" height="148" rx="7" fill="#ddf4ff" stroke="#0969da" stroke-width="3"/>
+      <rect x="11" y="17" width="81" height="55" rx="5" fill="#80ccff"/><rect x="11" y="88" width="60" height="7" rx="3.5" fill="#54aeff"/><rect x="11" y="106" width="81" height="7" rx="3.5" fill="#b6e3ff"/>
+    </g>
+    <text x="1000" y="355" text-anchor="middle" font-size="17" font-weight="700" fill="#0969da">short forms: -ct / -cr / -cb / -cl</text>
+    <text x="1000" y="379" text-anchor="middle" font-size="15" fill="#57606a">adds a different amount</text>
+    <text x="1000" y="399" text-anchor="middle" font-size="15" fill="#57606a">to each side</text>
+
+    <text x="600" y="438" text-anchor="middle" font-size="15" font-weight="600" fill="#57606a">Cropping happens before resizing.</text>
+  </g>
+</svg>

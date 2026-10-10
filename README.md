@@ -222,6 +222,8 @@ to one readable, regular, non-symlink, single-frame raster image.
 
 ### Sizing and cropping
 
+![Examples of proportional resizing, uniform cropping, and side-specific cropping](docs/images/sizing-cropping-options.svg)
+
 - `-w`, `--width N` shrinks images to a maximum pixel width; omitted by
   default. It preserves aspect ratio and never enlarges.
 - `-H`, `--height N` similarly sets an optional maximum pixel height. Width
