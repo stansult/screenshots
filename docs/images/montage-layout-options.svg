@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+  <title id="title">Montage layout options</title>
+  <desc id="desc">Examples showing a three-column by two-row tile grid, horizontal and vertical gaps over a colored background, and gravity aligning differently sized screenshots within tiles.</desc>
+  <rect width="1200" height="500" rx="24" fill="#f6f8fa"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text x="200" y="47" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">TILE GRID</text>
+    <text x="600" y="47" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">GAP &amp; BACKGROUND</text>
+    <text x="1000" y="47" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">GRAVITY</text>
+
+    <!-- Tile grid example -->
+    <g transform="translate(69 90)">
+      <rect width="262" height="268" rx="12" fill="#fff" stroke="#d0d7de" stroke-width="2"/>
+      <g fill="#ddf4ff" stroke="#0969da" stroke-width="2">
+        <rect x="20" y="20" width="66" height="104" rx="5"/>
+        <rect x="98" y="20" width="66" height="104" rx="5"/>
+        <rect x="176" y="20" width="66" height="104" rx="5"/>
+        <rect x="20" y="144" width="66" height="104" rx="5"/>
+        <rect x="98" y="144" width="66" height="104" rx="5"/>
+        <rect x="176" y="144" width="66" height="104" rx="5"/>
+      </g>
+      <g fill="#80ccff">
+        <rect x="29" y="31" width="48" height="29" rx="3"/><rect x="107" y="31" width="48" height="29" rx="3"/><rect x="185" y="31" width="48" height="29" rx="3"/>
+        <rect x="29" y="155" width="48" height="29" rx="3"/><rect x="107" y="155" width="48" height="29" rx="3"/><rect x="185" y="155" width="48" height="29" rx="3"/>
+      </g>
+      <g fill="#54aeff">
+        <rect x="29" y="72" width="38" height="5" rx="2.5"/><rect x="107" y="72" width="38" height="5" rx="2.5"/><rect x="185" y="72" width="38" height="5" rx="2.5"/>
+        <rect x="29" y="196" width="38" height="5" rx="2.5"/><rect x="107" y="196" width="38" height="5" rx="2.5"/><rect x="185" y="196" width="38" height="5" rx="2.5"/>
+      </g>
+    </g>
+    <text x="200" y="398" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">--tile 3x2</text>
+    <text x="200" y="425" text-anchor="middle" font-size="15" fill="#57606a">columns × rows</text>
+
+    <!-- Gap and background example -->
+    <g transform="translate(456 90)">
+      <rect width="288" height="268" rx="12" fill="#fff1b8" stroke="#bf8700" stroke-width="2"/>
+      <g fill="#ddf4ff" stroke="#0969da" stroke-width="2">
+        <rect x="24" y="28" width="105" height="92" rx="5"/>
+        <rect x="159" y="28" width="105" height="92" rx="5"/>
+        <rect x="24" y="148" width="105" height="92" rx="5"/>
+        <rect x="159" y="148" width="105" height="92" rx="5"/>
+      </g>
+      <g stroke="#57606a" stroke-width="2" fill="none">
+        <path d="M133 74h22m-22-6v12m22-12v12"/>
+        <path d="M76 124v20m-6-20h12m-12 20h12"/>
+      </g>
+      <text x="144" y="64" text-anchor="middle" font-size="13" font-weight="700" fill="#57606a">X</text>
+      <text x="88" y="139" font-size="13" font-weight="700" fill="#57606a">Y</text>
+    </g>
+    <text x="600" y="398" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">--gap XxY</text>
+    <rect x="568" y="407" width="56" height="23" rx="4" fill="#fff1b8" stroke="#bf8700"/>
+    <text x="463" y="425" font-size="15" fill="#57606a">--background</text>
+    <text x="596" y="424" text-anchor="middle" font-size="14" font-weight="600" fill="#57606a">COLOR</text>
+    <text x="631" y="425" font-size="15" fill="#57606a">fills the canvas</text>
+
+    <!-- Gravity example -->
+    <g transform="translate(838 90)">
+      <rect width="324" height="268" rx="12" fill="#fff" stroke="#d0d7de" stroke-width="2"/>
+      <g fill="#f6f8fa" stroke="#8c959f" stroke-width="2" stroke-dasharray="6 5">
+        <rect x="18" y="28" width="86" height="190" rx="5"/>
+        <rect x="119" y="28" width="86" height="190" rx="5"/>
+        <rect x="220" y="28" width="86" height="190" rx="5"/>
+      </g>
+      <g fill="#ddf4ff" stroke="#0969da" stroke-width="2">
+        <rect x="29" y="39" width="64" height="94" rx="5"/>
+        <rect x="130" y="76" width="64" height="94" rx="5"/>
+        <rect x="231" y="113" width="64" height="94" rx="5"/>
+      </g>
+      <g fill="#80ccff">
+        <rect x="37" y="48" width="48" height="28" rx="3"/>
+        <rect x="138" y="85" width="48" height="28" rx="3"/>
+        <rect x="239" y="122" width="48" height="28" rx="3"/>
+      </g>
+      <text x="61" y="244" text-anchor="middle" font-size="14" fill="#57606a">north</text>
+      <text x="162" y="244" text-anchor="middle" font-size="14" fill="#57606a">center</text>
+      <text x="263" y="244" text-anchor="middle" font-size="14" fill="#57606a">south</text>
+    </g>
+    <text x="1000" y="398" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">--gravity VALUE</text>
+    <text x="1000" y="425" text-anchor="middle" font-size="15" fill="#57606a">aligns images within their tiles</text>
+  </g>
+</svg>

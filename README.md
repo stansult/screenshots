@@ -266,6 +266,8 @@ All options in this subsection require `--paginate`. `-O` is invalid with
 
 ### Montage layout
 
+![Examples of montage tile arrangement, gaps, gravity, and background color](docs/images/montage-layout-options.svg)
+
 - `-t`, `--tile COLSxROWS` sets the montage grid. A zero lets ImageMagick
   determine that dimension automatically. The montage default is `10x0`; zip
   defaults to `Nx1`, where N is the number of input patterns.
