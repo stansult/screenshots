@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Paginate mode</title>
+  <desc id="desc">One very long screenshot is divided into three fixed-ratio pages arranged vertically.</desc>
+  <rect width="1200" height="600" rx="24" fill="#f6f8fa"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text x="235" y="44" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">ONE LONG IMAGE</text>
+    <text x="900" y="44" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">FIXED-RATIO PAGES</text>
+
+    <g transform="translate(165 60)">
+      <rect width="140" height="520" rx="11" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="137" height="25" rx="9" fill="#ddf4ff"/>
+      <circle cx="15" cy="14" r="3.5" fill="#54aeff"/><circle cx="28" cy="14" r="3.5" fill="#80ccff"/>
+      <rect x="11" y="40" width="118" height="60" rx="5" fill="#b6e3ff"/><rect x="11" y="115" width="88" height="7" rx="3.5" fill="#afb8c1"/><rect x="11" y="133" width="118" height="7" rx="3.5" fill="#d0d7de"/><rect x="11" y="151" width="105" height="7" rx="3.5" fill="#d0d7de"/>
+      <rect x="11" y="181" width="118" height="76" rx="5" fill="#dafbe1"/><rect x="11" y="272" width="97" height="7" rx="3.5" fill="#afb8c1"/><rect x="11" y="290" width="118" height="7" rx="3.5" fill="#d0d7de"/><rect x="11" y="308" width="92" height="7" rx="3.5" fill="#d0d7de"/>
+      <rect x="11" y="338" width="118" height="70" rx="5" fill="#fff8c5"/><rect x="11" y="423" width="84" height="7" rx="3.5" fill="#afb8c1"/><rect x="11" y="441" width="118" height="7" rx="3.5" fill="#d0d7de"/><rect x="11" y="459" width="102" height="7" rx="3.5" fill="#d0d7de"/><rect x="11" y="484" width="118" height="20" rx="5" fill="#ddf4ff"/>
+      <path d="M-12 170h164M-12 327h164" stroke="#cf222e" stroke-width="3" stroke-dasharray="8 7"/>
+    </g>
+
+    <path d="M405 300h125m-18-18 18 18-18 18" fill="none" stroke="#57606a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <g transform="translate(800 390) scale(.82)">
+      <rect width="170" height="220" rx="10" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="14" y="15" width="142" height="48" rx="5" fill="#fff8c5"/><rect x="14" y="78" width="103" height="7" rx="3.5" fill="#afb8c1"/><rect x="14" y="96" width="142" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="85" y="201" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">3 / 3</text>
+    </g>
+    <g transform="translate(780 230) scale(.82)">
+      <rect width="170" height="220" rx="10" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="14" y="15" width="142" height="52" rx="5" fill="#dafbe1"/><rect x="14" y="82" width="113" height="7" rx="3.5" fill="#afb8c1"/><rect x="14" y="100" width="142" height="7" rx="3.5" fill="#d0d7de"/><rect x="14" y="118" width="109" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="85" y="201" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">2 / 3</text>
+    </g>
+    <g transform="translate(760 70) scale(.82)">
+      <rect width="170" height="220" rx="10" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="14" y="15" width="142" height="43" rx="5" fill="#b6e3ff"/><rect x="14" y="73" width="101" height="7" rx="3.5" fill="#afb8c1"/><rect x="14" y="91" width="142" height="7" rx="3.5" fill="#d0d7de"/><rect x="14" y="109" width="127" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="85" y="201" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">1 / 3</text>
+    </g>
+  </g>
+</svg>

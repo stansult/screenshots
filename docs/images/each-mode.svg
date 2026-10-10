@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Each mode</title>
+  <desc id="desc">Three input screenshots are transformed separately into three output images.</desc>
+  <rect width="1200" height="360" rx="24" fill="#f6f8fa"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text x="238" y="52" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">INPUT IMAGES</text>
+    <text x="930" y="52" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">INDIVIDUAL OUTPUTS</text>
+    <g transform="translate(54 92)">
+      <g><rect width="120" height="195" rx="9" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="117" height="26" rx="7" fill="#ddf4ff"/><rect x="13" y="45" width="94" height="55" rx="5" fill="#b6e3ff"/><rect x="13" y="118" width="82" height="7" rx="3.5" fill="#afb8c1"/><rect x="13" y="136" width="94" height="7" rx="3.5" fill="#d0d7de"/><text x="60" y="177" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">A</text></g>
+      <g transform="translate(140)"><rect width="120" height="195" rx="9" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="117" height="26" rx="7" fill="#dafbe1"/><rect x="13" y="45" width="94" height="55" rx="5" fill="#aceebb"/><rect x="13" y="118" width="72" height="7" rx="3.5" fill="#afb8c1"/><rect x="13" y="136" width="94" height="7" rx="3.5" fill="#d0d7de"/><text x="60" y="177" text-anchor="middle" font-size="18" font-weight="700" fill="#1a7f37">B</text></g>
+      <g transform="translate(280)"><rect width="120" height="195" rx="9" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="117" height="26" rx="7" fill="#fff8c5"/><rect x="13" y="45" width="94" height="55" rx="5" fill="#fae17d"/><rect x="13" y="118" width="78" height="7" rx="3.5" fill="#afb8c1"/><rect x="13" y="136" width="94" height="7" rx="3.5" fill="#d0d7de"/><text x="60" y="177" text-anchor="middle" font-size="18" font-weight="700" fill="#9a6700">C</text></g>
+    </g>
+    <path d="M510 190h112m-18-18 18 18-18 18" fill="none" stroke="#57606a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(700 107)">
+      <g><rect width="125" height="170" rx="11" fill="#ddf4ff" stroke="#0969da" stroke-width="4"/><rect x="14" y="24" width="97" height="60" rx="5" fill="#80ccff"/><rect x="14" y="102" width="78" height="7" rx="3.5" fill="#54aeff"/><rect x="14" y="120" width="97" height="7" rx="3.5" fill="#80ccff"/><text x="62.5" y="153" text-anchor="middle" font-size="18" font-weight="700" fill="#0969da">A′</text></g>
+      <g transform="translate(145)"><rect width="125" height="170" rx="11" fill="#dafbe1" stroke="#1a7f37" stroke-width="4"/><rect x="14" y="24" width="97" height="60" rx="5" fill="#6fdd8b"/><rect x="14" y="102" width="73" height="7" rx="3.5" fill="#4ac26b"/><rect x="14" y="120" width="97" height="7" rx="3.5" fill="#6fdd8b"/><text x="62.5" y="153" text-anchor="middle" font-size="18" font-weight="700" fill="#1a7f37">B′</text></g>
+      <g transform="translate(290)"><rect width="125" height="170" rx="11" fill="#fff8c5" stroke="#9a6700" stroke-width="4"/><rect x="14" y="24" width="97" height="60" rx="5" fill="#eac54f"/><rect x="14" y="102" width="81" height="7" rx="3.5" fill="#d4a72c"/><rect x="14" y="120" width="97" height="7" rx="3.5" fill="#eac54f"/><text x="62.5" y="153" text-anchor="middle" font-size="18" font-weight="700" fill="#9a6700">C′</text></g>
+    </g>
+  </g>
+</svg>

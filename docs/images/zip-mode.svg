@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Zip mode</title>
+  <desc id="desc">Two vertical sets of portrait app screenshots combine by row into two vertically arranged side-by-side montages.</desc>
+  <rect width="1200" height="600" rx="24" fill="#f6f8fa"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <text x="260" y="44" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">TWO MATCHED SETS</text>
+    <text x="925" y="44" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">PAIRED MONTAGES</text>
+    <text x="155" y="80" text-anchor="middle" font-size="17" font-weight="700" fill="#0969da">SET A</text>
+    <text x="365" y="80" text-anchor="middle" font-size="17" font-weight="700" fill="#1a7f37">SET B</text>
+
+    <g transform="translate(95 96)">
+      <rect width="120" height="205" rx="13" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="117" height="25" rx="11" fill="#ddf4ff"/>
+      <rect x="12" y="40" width="96" height="66" rx="6" fill="#b6e3ff"/><rect x="12" y="120" width="72" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="138" width="96" height="7" rx="3.5" fill="#d0d7de"/><rect x="12" y="156" width="84" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="60" y="190" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">A1</text>
+    </g>
+    <g transform="translate(95 342)">
+      <rect width="120" height="205" rx="13" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="117" height="25" rx="11" fill="#ddf4ff"/>
+      <rect x="12" y="40" width="96" height="66" rx="6" fill="#80ccff"/><rect x="12" y="120" width="83" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="138" width="96" height="7" rx="3.5" fill="#d0d7de"/><rect x="12" y="156" width="68" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="60" y="190" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">A2</text>
+    </g>
+    <g transform="translate(305 96)">
+      <rect width="120" height="205" rx="13" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="117" height="25" rx="11" fill="#dafbe1"/>
+      <rect x="12" y="40" width="96" height="66" rx="6" fill="#aceebb"/><rect x="12" y="120" width="70" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="138" width="96" height="7" rx="3.5" fill="#d0d7de"/><rect x="12" y="156" width="81" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="60" y="190" text-anchor="middle" font-size="16" font-weight="700" fill="#1a7f37">B1</text>
+    </g>
+    <g transform="translate(305 342)">
+      <rect width="120" height="205" rx="13" fill="#fff" stroke="#8c959f" stroke-width="3"/><rect x="1.5" y="1.5" width="117" height="25" rx="11" fill="#dafbe1"/>
+      <rect x="12" y="40" width="96" height="66" rx="6" fill="#6fdd8b"/><rect x="12" y="120" width="78" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="138" width="96" height="7" rx="3.5" fill="#d0d7de"/><rect x="12" y="156" width="64" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="60" y="190" text-anchor="middle" font-size="16" font-weight="700" fill="#1a7f37">B2</text>
+    </g>
+
+    <path d="M500 300h110m-18-18 18 18-18 18" fill="none" stroke="#57606a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <g transform="translate(770 75)">
+      <rect width="310" height="220" rx="12" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="16" y="16" width="130" height="170" rx="9" fill="#ddf4ff" stroke="#8c959f" stroke-width="2"/><rect x="28" y="45" width="106" height="66" rx="6" fill="#b6e3ff"/><rect x="28" y="126" width="78" height="7" rx="3.5" fill="#8c959f"/><rect x="28" y="144" width="106" height="7" rx="3.5" fill="#afb8c1"/><text x="81" y="176" text-anchor="middle" font-size="15" font-weight="700" fill="#0969da">A1</text>
+      <rect x="164" y="16" width="130" height="170" rx="9" fill="#dafbe1" stroke="#8c959f" stroke-width="2"/><rect x="176" y="45" width="106" height="66" rx="6" fill="#aceebb"/><rect x="176" y="126" width="74" height="7" rx="3.5" fill="#8c959f"/><rect x="176" y="144" width="106" height="7" rx="3.5" fill="#afb8c1"/><text x="229" y="176" text-anchor="middle" font-size="15" font-weight="700" fill="#1a7f37">B1</text>
+      <text x="155" y="211" text-anchor="middle" font-size="15" font-weight="600" fill="#57606a">1.png</text>
+    </g>
+    <g transform="translate(770 325)">
+      <rect width="310" height="220" rx="12" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="16" y="16" width="130" height="170" rx="9" fill="#ddf4ff" stroke="#8c959f" stroke-width="2"/><rect x="28" y="45" width="106" height="66" rx="6" fill="#80ccff"/><rect x="28" y="126" width="84" height="7" rx="3.5" fill="#8c959f"/><rect x="28" y="144" width="106" height="7" rx="3.5" fill="#afb8c1"/><text x="81" y="176" text-anchor="middle" font-size="15" font-weight="700" fill="#0969da">A2</text>
+      <rect x="164" y="16" width="130" height="170" rx="9" fill="#dafbe1" stroke="#8c959f" stroke-width="2"/><rect x="176" y="45" width="106" height="66" rx="6" fill="#6fdd8b"/><rect x="176" y="126" width="80" height="7" rx="3.5" fill="#8c959f"/><rect x="176" y="144" width="106" height="7" rx="3.5" fill="#afb8c1"/><text x="229" y="176" text-anchor="middle" font-size="15" font-weight="700" fill="#1a7f37">B2</text>
+      <text x="155" y="211" text-anchor="middle" font-size="15" font-weight="600" fill="#57606a">2.png</text>
+    </g>
+  </g>
+</svg>
