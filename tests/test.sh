@@ -33,6 +33,7 @@ assert_status() {
     if [ "$RUN_STATUS" -ne "$expected" ]; then
         fail "expected exit status $expected, got $RUN_STATUS"
         echo "    stderr: $(cat "$CASE_DIR/stderr")" >&2
+        return 1
     fi
 }
 
@@ -658,6 +659,34 @@ test_paginate_pdf_a4() {
     ' || fail 'A4 PDF page dimensions are incorrect'
 }
 
+test_paginate_custom_paper_ratio() {
+    local first_pages second_pages
+    new_case
+    make_image "$CASE_DIR/long.png" 100x300 green
+
+    run_script -i long.png --paginate --paper 2038x2807 --output-pages -o first
+    assert_status 0 || return 1
+    first_pages="$(latest_directory "$CASE_DIR/first" 'pages-*')"
+    assert_dimensions "$first_pages/page-001.png" 100x138 || return 1
+
+    run_script -i long.png --paginate --paper 4076x5614 --output-pages -o second
+    assert_status 0 || return 1
+    second_pages="$(latest_directory "$CASE_DIR/second" 'pages-*')"
+    assert_dimensions "$second_pages/page-001.png" 100x138 || return 1
+
+    run_script -i long.png --paginate --paper 2038x2807 -o custom.pdf -O
+    assert_status 0 || return 1
+    assert_pdf_page_size "$CASE_DIR/custom.pdf" 612 842.92639843
+
+    run_script -i long.png --paginate --paper 0x2807 --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'zero-width custom paper unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Invalid --paper value' || return 1
+
+    run_script -i long.png --paginate --paper 2807x2038 --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'landscape custom paper unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'portrait' || return 1
+}
+
 test_paginate_short_letter_pdf() {
     new_case
     make_image "$CASE_DIR/short.png" 100x30 red
@@ -1065,6 +1094,7 @@ run_test 'paginate overlap repeats source rows' test_paginate_overlap
 run_test 'paginate zero overlap covers each row once' test_paginate_zero_overlap_coverage
 run_test 'paginate preprocesses before geometry' test_paginate_preprocesses_before_geometry
 run_test 'paginate creates A4 PDF' test_paginate_pdf_a4
+run_test 'paginate supports custom paper ratios' test_paginate_custom_paper_ratio
 run_test 'paginate creates short Letter PDF' test_paginate_short_letter_pdf
 run_test 'paginate derives default PDF name' test_paginate_default_pdf_name
 run_test 'paginate renders header and footer' test_paginate_header_footer_layout

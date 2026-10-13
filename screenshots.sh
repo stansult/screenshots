@@ -230,7 +230,8 @@ Options:
   -o, --output FILE|DIR  PDF file, or PNG parent with --output-pages
   -O, --overwrite        Atomically replace an existing PDF
   --output-pages         Write lossless PNG pages instead of PDF
-  --paper SIZE           letter (default), a4, or legal; portrait only
+  --paper SIZE           letter (default), a4, legal, or a custom WIDTHxHEIGHT
+                         aspect ratio; portrait only
   --margin N             Uniform outer margin in output pixels (default: 0)
   -mt, --margin-top N    Additional top margin in pixels (default: 0)
   -mr, --margin-right N  Additional right margin in pixels (default: 0)
@@ -265,6 +266,7 @@ If ImageMagick cannot write PDF, use --output-pages as the PNG fallback.
 Examples:
   screenshots.sh -i article.png --paginate
   screenshots.sh -i article.png --paginate --paper a4 --margin 40 -o article.pdf
+  screenshots.sh -i article.png --paginate --paper 2038x2807 -o article.pdf
   screenshots.sh -i article.png --paginate --margin 20 -ml 40 -mr 40
   screenshots.sh -i article.png --paginate --overlap 40 -o article.pdf
   screenshots.sh -i article.png --paginate --output-pages -o exports
@@ -459,6 +461,8 @@ border_color="black"
 each_mode=false
 paginate_mode=false
 paper="letter"
+paper_custom_width=""
+paper_custom_height=""
 margin="0"
 margin_top_extra="0"
 margin_right_extra="0"
@@ -1031,8 +1035,18 @@ if $paginate_mode; then
     case "$paper" in
         letter|a4|legal) ;;
         *)
-            echo "Invalid --paper value: $paper (expected letter, a4, or legal)" >&2
-            exit 1
+            if [[ "$paper" =~ ^([1-9][0-9]{0,8})x([1-9][0-9]{0,8})$ ]]; then
+                paper_custom_width="${BASH_REMATCH[1]}"
+                paper_custom_height="${BASH_REMATCH[2]}"
+                if ! LC_ALL=C awk -v width="$paper_custom_width" \
+                    -v height="$paper_custom_height" 'BEGIN { exit !(width < height) }'; then
+                    echo "Invalid --paper value: $paper (custom paper ratios must be portrait: WIDTH < HEIGHT)" >&2
+                    exit 1
+                fi
+            else
+                echo "Invalid --paper value: $paper (expected letter, a4, legal, or positive WIDTHxHEIGHT portrait ratio)" >&2
+                exit 1
+            fi
             ;;
     esac
     if ! [[ "$margin" =~ ^[0-9]+$ ]]; then
@@ -1510,6 +1524,12 @@ run_paginate() {
         letter) paper_width="612"; paper_height="792" ;;
         a4) paper_width="595.2756"; paper_height="841.8898" ;;
         legal) paper_width="612"; paper_height="1008" ;;
+        *)
+            paper_width="612"
+            paper_height="$(LC_ALL=C awk -v width="$paper_custom_width" \
+                -v height="$paper_custom_height" \
+                'BEGIN { printf "%.8f", 612 * height / width }')"
+            ;;
     esac
     canvas_width=$((source_width + margin_left + margin_right))
     canvas_height="$(LC_ALL=C awk -v width="$canvas_width" -v pw="$paper_width" \

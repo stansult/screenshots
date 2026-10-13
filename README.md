@@ -242,7 +242,11 @@ to one readable, regular, non-symlink, single-frame raster image.
 
 ![Examples of pagination paper and margins, header and footer decorations, and page overlap](docs/images/pagination-options.svg)
 
-- `--paper SIZE` selects `letter` (default), `a4`, or `legal`.
+- `--paper SIZE` selects `letter` (default), `a4`, `legal`, or a custom
+  portrait `WIDTHxHEIGHT` aspect ratio such as `2038x2807`. Custom dimensions
+  define proportions, not literal output pixels. Equivalent ratios produce the
+  same page geometry. Custom PDFs use a 612-point width and derive their height
+  from the requested ratio.
 - `--margin N` adds `N` white output pixels on every side (default: `0`).
 - `-mt`/`--margin-top N`, `-mr`/`--margin-right N`,
   `-mb`/`--margin-bottom N`, and `-ml`/`--margin-left N` add pixels to the

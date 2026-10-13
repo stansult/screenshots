@@ -74,6 +74,11 @@ Apply that density to temporary PNG pages and PDF assembly. It maps integer
 pixel dimensions to the selected physical paper dimensions without resampling
 the screenshot.
 
+Named paper sizes supply their standard PDF dimensions. A custom portrait
+`WIDTHxHEIGHT` paper value supplies only an aspect ratio: normalize its PDF
+width to 612 points and derive its height from that ratio. Equivalent ratios
+must therefore produce identical canvas geometry and physical PDF dimensions.
+
 ## Validation and publication
 
 Both output forms are first rendered as ordered, lossless temporary PNG pages.
@@ -103,7 +108,7 @@ Pagination does not provide:
 - OCR or searchable text;
 - whitespace-aware or content-aware page breaks;
 - automatic avoidance of split text or images;
-- landscape orientation or custom paper dimensions;
+- landscape orientation;
 - watermarks or transparent page backgrounds;
 - multiple-input or batch PDF production;
 - replacement or merging of an existing PNG page directory; or
