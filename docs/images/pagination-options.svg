@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1140" viewBox="0 0 1200 1140" role="img" aria-labelledby="title desc">
   <title id="title">Pagination options</title>
-  <desc id="desc">Paper sizes, additive margins, header and footer bands, and source rows repeated by page overlap.</desc>
+  <desc id="desc">Named and custom paper sizes, additive margins, header and footer bands, and source rows repeated by page overlap.</desc>
   <rect width="1200" height="1140" rx="24" fill="#f6f8fa"/>
   <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
     <text x="600" y="44" text-anchor="middle" font-size="20" font-weight="600" fill="#57606a">PAGINATION OPTIONS</text>
@@ -26,6 +26,12 @@
       <rect x="12" y="14" width="92" height="52" rx="4" fill="#fff8c5"/><rect x="12" y="81" width="68" height="7" rx="3.5" fill="#afb8c1"/><rect x="12" y="99" width="92" height="7" rx="3.5" fill="#d0d7de"/>
       <text x="58" y="209" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">legal</text>
       <text x="58" y="229" text-anchor="middle" font-size="13" fill="#57606a">8.5 × 14</text>
+    </g>
+    <g transform="translate(1008 87)">
+      <rect width="77" height="154" rx="7" fill="#fff" stroke="#0969da" stroke-width="4"/>
+      <rect x="10" y="14" width="57" height="43" rx="4" fill="#fbefff"/><rect x="10" y="72" width="43" height="7" rx="3.5" fill="#afb8c1"/><rect x="10" y="90" width="57" height="7" rx="3.5" fill="#d0d7de"/>
+      <text x="38.5" y="177" text-anchor="middle" font-size="16" font-weight="700" fill="#0969da">custom</text>
+      <text x="38.5" y="197" text-anchor="middle" font-size="13" fill="#57606a">1000 × 2000</text>
     </g>
 
     <text x="75" y="355" font-size="18" font-weight="700" fill="#0969da">MARGINS</text>
