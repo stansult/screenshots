@@ -62,6 +62,9 @@ the source ends exactly on a page boundary.
 Every page is an opaque white `CW` by `CH` PNG. Place each unscaled screenshot
 slice at `(ML, MT + HB)`. White canvas space supplies the outer margins,
 decoration bands, and final-page padding. Never trim a generated page.
+After all drawing and compositing, remove an alpha channel only when the
+completed page is fully opaque. This prevents redundant PDF soft masks while
+leaving any genuinely transparent image output unchanged.
 
 Use independent horizontal and vertical density values:
 

@@ -687,6 +687,20 @@ test_paginate_custom_paper_ratio() {
     assert_contains "$CASE_DIR/stderr" 'portrait' || return 1
 }
 
+test_paginate_pdf_omits_opaque_soft_masks() {
+    new_case
+    magick -size 500x1800 gradient:red-blue -depth 16 -alpha on \
+        -channel A -evaluate set 50% +channel "$CASE_DIR/transparent.png"
+    run_script -i transparent.png --paginate --margin 30 -ml 50 -mr 50 \
+        --header --footer --header-line --footer-line --title Test \
+        --overlap 50 -o result.pdf -O
+    assert_status 0 || return 1
+    assert_file "$CASE_DIR/result.pdf" || return 1
+    if grep -aq '/SMask' "$CASE_DIR/result.pdf"; then
+        fail 'paginated PDF contains redundant soft masks'
+    fi
+}
+
 test_paginate_short_letter_pdf() {
     new_case
     make_image "$CASE_DIR/short.png" 100x30 red
@@ -1095,6 +1109,7 @@ run_test 'paginate zero overlap covers each row once' test_paginate_zero_overlap
 run_test 'paginate preprocesses before geometry' test_paginate_preprocesses_before_geometry
 run_test 'paginate creates A4 PDF' test_paginate_pdf_a4
 run_test 'paginate supports custom paper ratios' test_paginate_custom_paper_ratio
+run_test 'paginate omits opaque PDF soft masks' test_paginate_pdf_omits_opaque_soft_masks
 run_test 'paginate creates short Letter PDF' test_paginate_short_letter_pdf
 run_test 'paginate derives default PDF name' test_paginate_default_pdf_name
 run_test 'paginate renders header and footer' test_paginate_header_footer_layout

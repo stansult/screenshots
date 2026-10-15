@@ -1364,6 +1364,19 @@ render_fitted_title() {
     return 1
 }
 
+remove_redundant_alpha() {
+    local image="$1" metadata channels opaque
+    metadata="$(magick identify -quiet -format '%[channels]|%[opaque]' \
+        "${image}[0]" 2>/dev/null)" || return 1
+    channels="${metadata%%|*}"
+    opaque="${metadata#*|}"
+    case "$channels:$opaque" in
+        *a*:True|*a*:true)
+            magick "$image" -alpha off "$image"
+            ;;
+    esac
+}
+
 render_page_png() {
     local source="$1" destination="$2" source_width="$3"
     local source_start="$4" source_height="$5" canvas_width="$6"
@@ -1423,6 +1436,8 @@ render_page_png() {
         label_y=$((canvas_height - page_margin_bottom - footer_height + (footer_height - label_height) / 2))
         magick "$destination" "$label" -geometry "+${label_x}+${label_y}" -composite "$destination"
     fi
+
+    remove_redundant_alpha "$destination"
 }
 
 validate_generated_pages() {
@@ -1681,7 +1696,7 @@ run_paginate() {
             "$margin_top" "$margin_right" "$margin_bottom" "$margin_left" "$density" \
             "$header_height" "$footer_height" "$created_text" \
             "${page_number}/${page_count}" "$title" "$paginate_work" \
-            "$decoration_inset" "$rule_width"
+            "$decoration_inset" "$rule_width" || return 1
         pages+=("$page_path")
         if [ "$end" -eq "$source_height" ]; then
             break
