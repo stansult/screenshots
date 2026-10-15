@@ -62,9 +62,15 @@ the source ends exactly on a page boundary.
 Every page is an opaque white `CW` by `CH` PNG. Place each unscaled screenshot
 slice at `(ML, MT + HB)`. White canvas space supplies the outer margins,
 decoration bands, and final-page padding. Never trim a generated page.
-After all drawing and compositing, remove an alpha channel only when the
-completed page is fully opaque. This prevents redundant PDF soft masks while
-leaving any genuinely transparent image output unchanged.
+Disable alpha when writing the completed page because compositing onto the
+white canvas makes every page opaque by definition. This prevents redundant
+PDF soft masks.
+
+Decode the prepared source once and clone all calculated slices from that
+in-memory image. Render static header labels once per document, then construct
+each page with a single canvas/compositing operation. This avoids repeatedly
+decoding the full-height source or reading and rewriting a completed page for
+each decoration.
 
 Use independent horizontal and vertical density values:
 
@@ -95,8 +101,10 @@ page dimensions within one PDF point in each direction.
 
 Publish only validated output:
 
-- Build a PDF in a temporary directory inside its destination directory, then
-  rename it over the destination atomically.
+- Build a hidden temporary PDF file inside its destination directory, then
+  rename it over the destination atomically. Using a file rather than a
+  temporary directory avoids leaving empty folders in File Provider-backed
+  locations such as Dropbox.
 - Build PNG pages in a hidden sibling directory, then rename the completed
   directory to its fresh final name.
 

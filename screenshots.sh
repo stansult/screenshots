@@ -568,7 +568,8 @@ cleanup() {
     if [ -n "$out_tmpdir" ] && [ -d "$out_tmpdir" ]; then
         rm -rf "$out_tmpdir"
     fi
-    if [ -n "$paginate_publish_tmp" ] && [ -d "$paginate_publish_tmp" ]; then
+    if [ -n "$paginate_publish_tmp" ] && \
+        { [ -e "$paginate_publish_tmp" ] || [ -L "$paginate_publish_tmp" ]; }; then
         rm -rf "$paginate_publish_tmp"
     fi
     finish_operational_output
@@ -1429,69 +1430,38 @@ render_fitted_title() {
     return 1
 }
 
-remove_redundant_alpha() {
-    local image="$1" metadata channels opaque
-    metadata="$(magick identify -quiet -format '%[channels]|%[opaque]' \
-        "${image}[0]" 2>/dev/null)" || return 1
-    channels="${metadata%%|*}"
-    opaque="${metadata#*|}"
-    case "$channels:$opaque" in
-        *a*:True|*a*:true)
-            magick "$image" -alpha off "$image"
-            ;;
-    esac
-}
-
 render_page_png() {
-    local source="$1" destination="$2" source_width="$3"
-    local source_start="$4" source_height="$5" canvas_width="$6"
-    local canvas_height="$7" page_margin_top="$8" page_margin_right="$9"
-    local page_margin_bottom="${10}" page_margin_left="${11}" density="${12}"
-    local header_height="${13}" footer_height="${14}" created_text="${15}"
-    local page_label="${16}" page_title="${17}" labels_dir="${18}"
-    local decoration_inset="${19}" decoration_left decoration_right
-    local rule_width="${20}" rule_y
-    local content_top label dimensions label_width label_height label_x label_y
-    local title_label title_max title_gap
+    local source="$1" destination="$2" canvas_width="$3"
+    local canvas_height="$4" page_margin_top="$5" page_margin_right="$6"
+    local page_margin_bottom="$7" page_margin_left="$8" density="$9"
+    local header_height="${10}" footer_height="${11}" page_label="${12}"
+    local labels_dir="${13}" decoration_inset="${14}" rule_width="${15}"
+    local header_date_label="${16}" header_date_geometry="${17}"
+    local header_title_label="${18}" header_title_geometry="${19}"
+    local decoration_left decoration_right content_top rule_y
+    local label dimensions label_width label_height label_x label_y
+    local -a operations=()
 
     content_top=$((page_margin_top + header_height))
     decoration_left=$((page_margin_left + decoration_inset))
     decoration_right=$((canvas_width - page_margin_right - decoration_inset))
-    magick -units PixelsPerInch -density "$density" \
-        -size "${canvas_width}x${canvas_height}" xc:white \
-        \( "$source" -crop "${source_width}x${source_height}+0+${source_start}" +repage \) \
-        -geometry "+${page_margin_left}+${content_top}" -composite "$destination"
 
     if $header_line_set; then
         rule_y=$((content_top - 1))
-        magick "$destination" -stroke '#d0d0d0' -strokewidth "$rule_width" \
-            -draw "line ${decoration_left},${rule_y} ${decoration_right},${rule_y}" \
-            "$destination"
+        operations+=( -stroke '#d0d0d0' -strokewidth "$rule_width" \
+            -draw "line ${decoration_left},${rule_y} ${decoration_right},${rule_y}" )
     fi
     if $footer_line_set; then
         rule_y=$((canvas_height - page_margin_bottom - footer_height))
-        magick "$destination" -stroke '#d0d0d0' -strokewidth "$rule_width" \
-            -draw "line ${decoration_left},${rule_y} ${decoration_right},${rule_y}" \
-            "$destination"
+        operations+=( -stroke '#d0d0d0' -strokewidth "$rule_width" \
+            -draw "line ${decoration_left},${rule_y} ${decoration_right},${rule_y}" )
     fi
 
-    if [ "$header_height" -gt 0 ]; then
-        label="$labels_dir/header-date.png"
-        render_text_label "$created_text" "$label" "$density"
-        dimensions="$(get_pixel_size "$label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
-        label_y=$((page_margin_top + (header_height - label_height) / 2))
-        magick "$destination" "$label" -geometry "+${decoration_left}+${label_y}" -composite "$destination"
-        if [ -n "$page_title" ]; then
-            title_gap=$((label_height > 0 ? label_height : 1))
-            title_max=$((decoration_right - decoration_left - label_width - title_gap))
-            title_label="$labels_dir/header-title.png"
-            if render_fitted_title "$page_title" "$title_label" "$density" "$title_max"; then
-                dimensions="$(get_pixel_size "$title_label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
-                label_x=$((decoration_right - label_width))
-                label_y=$((page_margin_top + (header_height - label_height) / 2))
-                magick "$destination" "$title_label" -geometry "+${label_x}+${label_y}" -composite "$destination"
-            fi
-        fi
+    if [ -n "$header_date_label" ]; then
+        operations+=( "$header_date_label" -geometry "$header_date_geometry" -composite )
+    fi
+    if [ -n "$header_title_label" ]; then
+        operations+=( "$header_title_label" -geometry "$header_title_geometry" -composite )
     fi
     if [ "$footer_height" -gt 0 ]; then
         label="$labels_dir/footer-page.png"
@@ -1499,10 +1469,39 @@ render_page_png() {
         dimensions="$(get_pixel_size "$label")"; label_width="${dimensions%%x*}"; label_height="${dimensions##*x}"
         label_x=$((decoration_right - label_width))
         label_y=$((canvas_height - page_margin_bottom - footer_height + (footer_height - label_height) / 2))
-        magick "$destination" "$label" -geometry "+${label_x}+${label_y}" -composite "$destination"
+        operations+=( "$label" -geometry "+${label_x}+${label_y}" -composite )
     fi
 
-    remove_redundant_alpha "$destination"
+    magick -units PixelsPerInch -density "$density" \
+        -size "${canvas_width}x${canvas_height}" xc:white \
+        "$source" -geometry "+${page_margin_left}+${content_top}" -composite \
+        ${operations[@]+"${operations[@]}"} -alpha off "$destination"
+}
+
+write_paginate_slices() {
+    local source="$1" slices_dir="$2" source_width="$3"
+    local source_height="$4" slice_height="$5" advance="$6"
+    local page_count="$7" page_digits="$8"
+    local page_number=1 start=0 end current_height slice_path
+    local -a operations=()
+
+    while [ "$page_number" -le "$page_count" ]; do
+        end=$((start + slice_height))
+        if [ "$end" -gt "$source_height" ]; then
+            end="$source_height"
+        fi
+        current_height=$((end - start))
+        slice_path="$(printf "%s/slice-%0*d.miff" "$slices_dir" "$page_digits" "$page_number")"
+        operations+=( '(' +clone -crop "${source_width}x${current_height}+0+${start}" \
+            +repage -write "$slice_path" +delete ')' )
+        if [ "$end" -eq "$source_height" ]; then
+            break
+        fi
+        start=$((start + advance))
+        page_number=$((page_number + 1))
+    done
+
+    magick "$source" "${operations[@]}" null:
 }
 
 validate_generated_pages() {
@@ -1564,7 +1563,9 @@ run_paginate() {
     local dimensions source_width source_height paper_width paper_height
     local canvas_width canvas_height slice_height advance page_count density
     local header_height=0 footer_height=0 created_text="" decoration_height decoration_inset rule_width
-    local page_digits page_number start end current_height page_path
+    local page_digits page_number start end page_path slice_path slices_dir
+    local header_date_label="" header_date_geometry="" header_title_label="" header_title_geometry=""
+    local label_width label_height label_x label_y title_gap title_max
     local destination destination_dir destination_base destination_dir_abs out_parent_dir timestamp
     local staging candidate choice
     local -a matches=() pages=()
@@ -1741,10 +1742,42 @@ run_paginate() {
         fi
         destination_dir_abs="$(cd "$destination_dir" && pwd -P)"
         destination="$destination_dir_abs/$destination_base"
-        paginate_publish_tmp="$(mktemp -d "$destination_dir_abs/.screenshots-pdf.XXXXXX")"
+        paginate_publish_tmp="$(mktemp "$destination_dir_abs/.screenshots-pdf.XXXXXX.pdf")"
+        candidate="$paginate_publish_tmp"
         staging="$paginate_work/pages"
         mkdir "$staging"
     fi
+
+    if [ "$header_height" -gt 0 ]; then
+        header_date_label="$paginate_work/header-date.png"
+        render_text_label "$created_text" "$header_date_label" "$density" || return 1
+        dimensions="$(get_pixel_size "$header_date_label")"
+        label_width="${dimensions%%x*}"
+        label_height="${dimensions##*x}"
+        label_y=$((margin_top + (header_height - label_height) / 2))
+        label_x=$((margin_left + decoration_inset))
+        header_date_geometry="+${label_x}+${label_y}"
+        if [ -n "$title" ]; then
+            title_gap=$((label_height > 0 ? label_height : 1))
+            title_max=$((canvas_width - margin_right - decoration_inset - margin_left - decoration_inset - label_width - title_gap))
+            header_title_label="$paginate_work/header-title.png"
+            if render_fitted_title "$title" "$header_title_label" "$density" "$title_max"; then
+                dimensions="$(get_pixel_size "$header_title_label")"
+                label_width="${dimensions%%x*}"
+                label_height="${dimensions##*x}"
+                label_x=$((canvas_width - margin_right - decoration_inset - label_width))
+                label_y=$((margin_top + (header_height - label_height) / 2))
+                header_title_geometry="+${label_x}+${label_y}"
+            else
+                header_title_label=""
+            fi
+        fi
+    fi
+
+    slices_dir="$paginate_work/slices"
+    mkdir "$slices_dir"
+    write_paginate_slices "$prepared" "$slices_dir" "$source_width" \
+        "$source_height" "$slice_height" "$advance" "$page_count" "$page_digits" || return 1
 
     page_number=1
     start=0
@@ -1753,15 +1786,15 @@ run_paginate() {
         if [ "$end" -gt "$source_height" ]; then
             end="$source_height"
         fi
-        current_height=$((end - start))
         page_path="$(printf "%s/page-%0*d.png" "$staging" "$page_digits" "$page_number")"
+        slice_path="$(printf "%s/slice-%0*d.miff" "$slices_dir" "$page_digits" "$page_number")"
         log "Page $page_number: source rows [$start,$end)"
-        render_page_png "$prepared" "$page_path" "$source_width" "$start" \
-            "$current_height" "$canvas_width" "$canvas_height" \
+        render_page_png "$slice_path" "$page_path" "$canvas_width" "$canvas_height" \
             "$margin_top" "$margin_right" "$margin_bottom" "$margin_left" "$density" \
-            "$header_height" "$footer_height" "$created_text" \
-            "${page_number}/${page_count}" "$title" "$paginate_work" \
-            "$decoration_inset" "$rule_width" || return 1
+            "$header_height" "$footer_height" "${page_number}/${page_count}" \
+            "$paginate_work" "$decoration_inset" "$rule_width" \
+            "$header_date_label" "$header_date_geometry" \
+            "$header_title_label" "$header_title_geometry" || return 1
         pages+=("$page_path")
         if [ "$end" -eq "$source_height" ]; then
             break
@@ -1782,7 +1815,6 @@ run_paginate() {
         return 0
     fi
 
-    candidate="$paginate_publish_tmp/output.pdf"
     log "PDF assembly: ${#pages[@]} page(s) -> $destination"
     if ! magick "${pages[@]}" -units PixelsPerInch -density "$density" \
         -compress Zip "$candidate"; then
