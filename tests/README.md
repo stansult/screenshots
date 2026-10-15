@@ -12,7 +12,8 @@ the run finishes. No fixture images or output files are stored in the
 repository.
 
 The suite checks montage, crop, resize, each, zip, pagination,
-output-exclusion, argument-validation, and font-discovery behavior. Pagination
+operational timestamps, output-exclusion, argument-validation, and
+font-discovery behavior. Pagination
 coverage includes PDF and PNG output, paper dimensions, uniform and asymmetric
 margins, overlap,
 headers, footers, creation timestamps, preprocessing order, automatic output

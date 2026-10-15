@@ -21,7 +21,7 @@ EOF
 EOF
     fi
     cat <<'EOF'
-  -v, --verbose          Print each action
+  -v, --verbose          Print additional timestamped actions
   -h, --help             General help; use either flag with MODE for details
 EOF
 }
@@ -60,6 +60,10 @@ Examples:
   screenshots.sh -i "android/*.png" -i "ios/*.png" -o comparisons
   screenshots.sh -i "*.png" --each --width 750
   screenshots.sh -i article.png --paginate -o article.pdf
+
+Operational output uses local [HH:MM:SS] timestamps. A local [YYYY-MM-DD]
+line appears before the first message and again at the end only if the date
+changed. Help output remains undecorated.
 EOF
 }
 
@@ -497,6 +501,66 @@ trim_fuzz_set=false
 tmpdir=""
 out_tmpdir=""
 paginate_publish_tmp=""
+operational_output_started=0
+operational_start_date=""
+operational_last_stream="stderr"
+
+raw_output_line() {
+    local stream="$1" line="$2"
+    if [ "$stream" = "stdout" ]; then
+        printf '%s\n' "$line"
+    else
+        printf '%s\n' "$line" >&2
+    fi
+}
+
+begin_operational_output() {
+    local stream="$1"
+    if [ "$operational_output_started" -eq 0 ]; then
+        operational_start_date="$(date '+%Y-%m-%d')" || operational_start_date="unknown-date"
+        raw_output_line "$stream" "[$operational_start_date]"
+        operational_output_started=1
+    fi
+    operational_last_stream="$stream"
+}
+
+operational_block() {
+    local stream="$1" text="$2" line current_time timestamp_written=0
+    begin_operational_output "$stream"
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ -z "$line" ]; then
+            raw_output_line "$stream" ""
+        elif [ "$timestamp_written" -eq 0 ]; then
+            current_time="$(date '+%H:%M:%S')" || current_time="??:??:??"
+            raw_output_line "$stream" "[$current_time] $line"
+            timestamp_written=1
+        else
+            raw_output_line "$stream" "$line"
+        fi
+    done <<< "$text"
+}
+
+operational_message() {
+    operational_block "$1" "$2"
+}
+
+finish_operational_output() {
+    local end_date
+    [ "$operational_output_started" -eq 1 ] || return 0
+    end_date="$(date '+%Y-%m-%d')" || end_date="$operational_start_date"
+    if [ "$end_date" != "$operational_start_date" ]; then
+        raw_output_line "$operational_last_stream" "[$end_date]"
+    fi
+}
+
+report_outputs() {
+    local text="Output file(s):" out
+    for out in "${all_output_list[@]}"; do
+        text+=$'\n'"$out"
+    done
+    operational_block stdout "$text"
+}
+
 cleanup() {
     if [ -n "$tmpdir" ] && [ -d "$tmpdir" ]; then
         rm -rf "$tmpdir"
@@ -507,12 +571,13 @@ cleanup() {
     if [ -n "$paginate_publish_tmp" ] && [ -d "$paginate_publish_tmp" ]; then
         rm -rf "$paginate_publish_tmp"
     fi
+    finish_operational_output
 }
 trap cleanup EXIT
 
 log() {
     if $verbose; then
-        echo "$@" >&2
+        operational_message stderr "$*"
     fi
 }
 
@@ -1811,12 +1876,16 @@ all_output_list=()
 tmpdir="$(mktemp -d /tmp/screenshots.XXXXXX)"
 out_tmpdir="$(mktemp -d /tmp/screenshots.out.XXXXXX)"
 
+case "$mode" in
+    paginate) operational_message stdout "processing: ${input_patterns[0]}" ;;
+    zip) operational_message stdout "processing: zip (${#input_patterns[@]} input patterns)" ;;
+    each) operational_message stdout "processing: each (${input_patterns[0]})" ;;
+    montage) operational_message stdout "processing: ${input_patterns[0]}" ;;
+esac
+
 if [ "$mode" = "paginate" ]; then
     run_paginate
-    echo "Output file(s):"
-    for out in "${all_output_list[@]}"; do
-        echo "$out"
-    done
+    report_outputs
     exit 0
 elif $zip_mode; then
     zip_n=${#input_patterns[@]}
@@ -2047,7 +2116,4 @@ else
     log "Shadow: skipped"
 fi
 
-echo "Output file(s):"
-for out in "${all_output_list[@]}"; do
-    echo "$out"
-done
+report_outputs

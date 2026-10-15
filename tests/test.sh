@@ -316,6 +316,30 @@ test_general_help() {
     assert_not_contains "$CASE_DIR/stdout" 'No usable font found'
 }
 
+test_operational_timestamps() {
+    local case_dir_physical
+    new_case
+    make_image "$CASE_DIR/a.png" 100x80 red
+    run_script -i a.png -o result.png --no-trim -O
+    assert_status 0 || return 1
+    sed -n '1p' "$CASE_DIR/stdout" | grep -Eq '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}\]$' || \
+        fail 'normal output did not start with a local date' || return 1
+    grep -Eq '^\[[0-9]{2}:[0-9]{2}:[0-9]{2}\] processing: ' "$CASE_DIR/stdout" || \
+        fail 'processing message was not timestamped' || return 1
+    grep -Eq '^\[[0-9]{2}:[0-9]{2}:[0-9]{2}\] Output file\(s\):$' "$CASE_DIR/stdout" || \
+        fail 'output summary was not timestamped' || return 1
+    case_dir_physical="$(cd "$CASE_DIR" && pwd -P)"
+    grep -Fxq "$case_dir_physical/result.png" "$CASE_DIR/stdout" || \
+        fail 'output path continuation was not preserved' || return 1
+
+    run_script -h
+    assert_status 0 || return 1
+    if grep -Eq '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}\]$|^\[[0-9]{2}:[0-9]{2}:[0-9]{2}\]' \
+        "$CASE_DIR/stdout"; then
+        fail 'help output was timestamped'
+    fi
+}
+
 test_mode_help_pages() {
     local topic other long_help selector_help crop_option
     new_case
@@ -1091,6 +1115,7 @@ run_test 'options with no effect are rejected' test_no_effect_options_are_reject
 run_test 'output is excluded from input glob' test_output_excluded_from_inputs
 run_test 'invalid arguments are rejected' test_argument_validation
 run_test 'general help is concise and complete' test_general_help
+run_test 'operational output is timestamped' test_operational_timestamps
 run_test 'mode help selects requested page' test_mode_help_pages
 run_test 'invalid help requests are rejected' test_invalid_help_requests
 run_test 'help precedes validation and dependencies' test_help_precedes_validation_and_dependencies

@@ -314,7 +314,13 @@ All options in this subsection require `--paginate`. `-O` is invalid with
 - `-O`, `--overwrite` overwrites an existing montage or paginated PDF without
   prompting. It is rejected in zip/each mode, which always create fresh output
   directories, and with `--output-pages`.
-- `-v`, `--verbose` prints processing details.
+- Primary operational messages use local `[HH:MM:SS]` timestamps in normal
+  and verbose runs. A `[YYYY-MM-DD]` line precedes the first message and is
+  repeated at the end only when the run crosses midnight. Continuation lines
+  and help output remain undecorated. Every run reports `processing:` before
+  work begins so its elapsed time is visible from the final output timestamp.
+- `-v`, `--verbose` prints additional timestamped processing details to
+  standard error.
 - `-h`, `--help` shows concise general help. Either spelling accepts
   `montage`, `zip`, `each`, or `paginate` for complete mode help.
 
