@@ -11,7 +11,7 @@ small solid-color PNG fixtures in a temporary directory and remove them when
 the run finishes. No fixture images or output files are stored in the
 repository.
 
-The suite checks montage, crop, resize, each, zip, pagination,
+The suite checks montage, crop, resize, each, zip, pagination, presets,
 operational timestamps, output-exclusion, argument-validation, and
 font-discovery behavior. Pagination
 coverage includes PDF and PNG output, paper dimensions, uniform and asymmetric
@@ -20,7 +20,9 @@ headers, footers, creation timestamps, preprocessing order, automatic output
 directories, parent-directory selection, atomic replacement, invalid input,
 dependency isolation, complete margin edges, zero-overlap row continuity,
 timestamp-source priority, large page-number width, and every incompatible
-pagination option. Validation coverage also rejects mode-specific and
+pagination option. Preset coverage includes order-independent explicit
+overrides, negative decoration overrides, title-field expansion, and invalid
+fields or preset requests. Validation coverage also rejects mode-specific and
 dependent options that would otherwise have no effect. Mode-help coverage
 includes all topics and explicit
 selectors, invalid/conflicting requests, dependency isolation, and confirmation

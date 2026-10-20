@@ -45,6 +45,7 @@ Modes:
 Common options:
   -i, --input PATTERN    Quoted input glob; repeat to select zip mode
   -o, --output FILE|DIR  Output meaning depends on the selected mode
+  --preset NAME          Apply one named option bundle; explicit options win
 EOF
     usage_common_transform_options
     cat <<'EOF'
@@ -54,6 +55,7 @@ Detailed help:
   screenshots.sh --help zip
   screenshots.sh --help each
   screenshots.sh --help paginate
+  screenshots.sh --help presets
 
 Examples:
   screenshots.sh -i "*.png" -o grid.png
@@ -64,6 +66,41 @@ Examples:
 Operational output uses local [HH:MM:SS] timestamps. A local [YYYY-MM-DD]
 line appears before the first message and again at the end only if the date
 changed. Help output remains undecorated.
+EOF
+}
+
+usage_presets() {
+    cat <<'EOF'
+Presets
+
+Usage:
+  screenshots.sh -i IMAGE --preset NAME [explicit options]
+
+Description:
+  Apply one named bundle of existing options. A preset may select a mode.
+  Explicit options override preset values regardless of argument order. Only
+  one preset may be used per command.
+
+Available presets:
+  paginated-document  Paginate with a {stem} title, header and footer,
+                      separator lines, 100px margins, 100px extra on each
+                      side, and 50px overlap
+
+Title fields:
+  {filename}          Complete input filename, including its extension
+  {stem}              Input filename without its final extension
+  {{                  Literal opening brace
+  }}                  Literal closing brace
+
+Preset overrides:
+  --no-header, --no-footer, --no-header-line, --no-footer-line
+
+Examples:
+  screenshots.sh -i document.png --preset paginated-document
+  screenshots.sh -i document.png --preset paginated-document --overlap 20
+  screenshots.sh -i document.png --title "Copy of {filename}" --paginate --header
+
+See PRESETS.md for the complete preset catalog and expansion details.
 EOF
 }
 
@@ -244,7 +281,8 @@ Options:
   --overlap N            Repeated source rows between pages (default: 0;
                          must be smaller than the calculated slice height)
   --header               Add creation date/time at top left
-  --title TEXT           Add header-right text; requires --header
+  --title TEXT           Add header-right text; {filename} and {stem} expand;
+                         requires --header
   --footer               Add page/total-pages at bottom right
   --header-line          Add a thin gray rule; requires --header
   --footer-line          Add a thin gray rule; requires --footer
@@ -280,7 +318,7 @@ EOF
 
 usage_topics_error() {
     echo "$1" >&2
-    echo "Accepted help topics: montage, zip, each, paginate" >&2
+    echo "Accepted help topics: montage, zip, each, paginate, presets" >&2
 }
 
 handle_help_request() {
@@ -299,7 +337,7 @@ handle_help_request() {
                 ;;
             -e|--each) each_seen=true ;;
             -p|--paginate) paginate_seen=true ;;
-            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
+            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size|--preset)
                 if [ $((i + 1)) -lt "$count" ]; then
                     next="${argv[$((i + 1))]}"
                     case "$next" in
@@ -331,7 +369,7 @@ handle_help_request() {
     if [ $((help_index + 1)) -lt "$count" ]; then
         next="${argv[$((help_index + 1))]}"
         case "$next" in
-            montage|zip|each|paginate)
+            montage|zip|each|paginate|presets)
                 topic="$next"
                 topic_index=$((help_index + 1))
                 ;;
@@ -359,7 +397,7 @@ handle_help_request() {
                 done
                 continue
                 ;;
-            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
+            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size|--preset)
                 if [ $((i + 1)) -lt "$count" ]; then
                     next="${argv[$((i + 1))]}"
                     if [ $((i + 1)) -ne "$help_index" ] && \
@@ -408,6 +446,7 @@ handle_help_request() {
         zip) usage_zip ;;
         each) usage_each ;;
         paginate) usage_paginate ;;
+        presets) usage_presets ;;
     esac
     exit 0
 }
@@ -464,6 +503,8 @@ border_width="1"
 border_color="black"
 each_mode=false
 paginate_mode=false
+preset_name=""
+preset_count=0
 paper="letter"
 paper_custom_width=""
 paper_custom_height=""
@@ -486,6 +527,10 @@ header_set=false
 footer_set=false
 header_line_set=false
 footer_line_set=false
+header_choice=""
+footer_choice=""
+header_line_choice=""
+footer_line_choice=""
 title=""
 title_set=false
 page_font_size="6"
@@ -591,10 +636,15 @@ fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
+        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size|--preset)
             if [ $# -lt 2 ]; then
                 echo "Option $1 requires an argument." >&2
-                echo "Run with --help for usage." >&2
+                if [ "$1" = "--preset" ]; then
+                    echo "Available presets: paginated-document" >&2
+                    echo "Run with --help presets for details." >&2
+                else
+                    echo "Run with --help for usage." >&2
+                fi
                 exit 1
             fi
             ;;
@@ -757,6 +807,16 @@ while [ $# -gt 0 ]; do
             paginate_mode=true
             shift
             ;;
+        --preset)
+            preset_count=$((preset_count + 1))
+            if [ "$preset_count" -gt 1 ]; then
+                echo "Option --preset given more than once." >&2
+                echo "Run with --help presets for usage." >&2
+                exit 1
+            fi
+            preset_name="$2"
+            shift 2
+            ;;
         --paper)
             paper="$2"
             paper_set=true
@@ -814,18 +874,42 @@ while [ $# -gt 0 ]; do
             ;;
         --header)
             header_set=true
+            header_choice=true
+            shift
+            ;;
+        --no-header)
+            header_set=false
+            header_choice=false
             shift
             ;;
         --footer)
             footer_set=true
+            footer_choice=true
+            shift
+            ;;
+        --no-footer)
+            footer_set=false
+            footer_choice=false
             shift
             ;;
         --header-line)
             header_line_set=true
+            header_line_choice=true
+            shift
+            ;;
+        --no-header-line)
+            header_line_set=false
+            header_line_choice=false
             shift
             ;;
         --footer-line)
             footer_line_set=true
+            footer_line_choice=true
+            shift
+            ;;
+        --no-footer-line)
+            footer_line_set=false
+            footer_line_choice=false
             shift
             ;;
         --title)
@@ -870,6 +954,59 @@ if [ $# -gt 0 ]; then
     exit 1
 fi
 
+case "$preset_name" in
+    "")
+        ;;
+    paginated-document)
+        if $each_mode; then
+            echo "Preset 'paginated-document' conflicts with --each." >&2
+            exit 1
+        fi
+        paginate_mode=true
+        if ! $overlap_set; then
+            overlap="50"
+        fi
+        if ! $margin_set; then
+            margin="100"
+        fi
+        if ! $margin_left_set; then
+            margin_left_extra="100"
+        fi
+        if ! $margin_right_set; then
+            margin_right_extra="100"
+        fi
+        if [ -z "$header_choice" ]; then
+            header_set=true
+        fi
+        if [ -z "$footer_choice" ]; then
+            footer_set=true
+        fi
+        if $header_set; then
+            if [ -z "$header_line_choice" ]; then
+                header_line_set=true
+            fi
+            if ! $title_set; then
+                title="{stem}"
+                title_set=true
+            fi
+        elif [ -z "$header_line_choice" ]; then
+            header_line_set=false
+        fi
+        if $footer_set; then
+            if [ -z "$footer_line_choice" ]; then
+                footer_line_set=true
+            fi
+        elif [ -z "$footer_line_choice" ]; then
+            footer_line_set=false
+        fi
+        ;;
+    *)
+        echo "Unknown preset: $preset_name" >&2
+        echo "Run with --help presets to list available presets." >&2
+        exit 1
+        ;;
+esac
+
 if [ ${#input_patterns[@]} -eq 0 ]; then
     echo "Missing required option: -i/--input" >&2
     echo "Run with --help for usage." >&2
@@ -890,10 +1027,19 @@ elif $zip_mode; then
     mode="zip"
 fi
 
+if [ -z "$preset_name" ] && { [ "$header_choice" = "false" ] || \
+    [ "$footer_choice" = "false" ] || [ "$header_line_choice" = "false" ] || \
+    [ "$footer_line_choice" = "false" ]; }; then
+    echo "Negative header/footer options are only used to override a preset." >&2
+    exit 1
+fi
+
 if ! $paginate_mode && { $paper_set || $margin_set || $margin_top_set || \
     $margin_right_set || $margin_bottom_set || $margin_left_set || \
     $overlap_set || $output_pages_set || \
     $header_set || $footer_set || $header_line_set || $footer_line_set || \
+    [ -n "$header_choice" ] || [ -n "$footer_choice" ] || \
+    [ -n "$header_line_choice" ] || [ -n "$footer_line_choice" ] || \
     $title_set || $page_font_size_set; }; then
     echo "Pagination options such as --paper, margin options, --overlap, --output-pages, headers, and footers require --paginate." >&2
     exit 1
@@ -1002,6 +1148,10 @@ if [ ${#no_op_errors[@]} -gt 0 ]; then
         echo "  $no_op_error" >&2
     done
     exit 1
+fi
+
+if [ -n "$preset_name" ]; then
+    log "Preset: $preset_name -> paginate=$paginate_mode header=$header_set footer=$footer_set lines=${header_line_set}/${footer_line_set} overlap=${overlap}px title='$title'"
 fi
 
 if ! command -v magick >/dev/null 2>&1; then
@@ -1402,6 +1552,68 @@ creation_timestamp() {
     format_epoch_local "$epoch"
 }
 
+expand_title_template() {
+    local template="$1" source="$2" filename stem result=""
+    local length index=0 pair field field_end
+
+    filename="$(basename "$source")"
+    stem="${filename%.*}"
+    if [ -z "$stem" ]; then
+        stem="$filename"
+    fi
+    length=${#template}
+
+    while [ "$index" -lt "$length" ]; do
+        pair="${template:$index:2}"
+        case "$pair" in
+            '{{')
+                result+='{'
+                index=$((index + 2))
+                continue
+                ;;
+            '}}')
+                result+='}'
+                index=$((index + 2))
+                continue
+                ;;
+        esac
+        case "${template:$index}" in
+            '{filename}'*)
+                result+="$filename"
+                index=$((index + 10))
+                continue
+                ;;
+            '{stem}'*)
+                result+="$stem"
+                index=$((index + 6))
+                continue
+                ;;
+        esac
+        if [ "${template:$index:1}" = "{" ]; then
+            field_end=$((index + 1))
+            while [ "$field_end" -lt "$length" ] && \
+                [ "${template:$field_end:1}" != "}" ]; do
+                field_end=$((field_end + 1))
+            done
+            if [ "$field_end" -lt "$length" ]; then
+                field="${template:$index:$((field_end - index + 1))}"
+            else
+                field="${template:$index}"
+            fi
+            echo "Unknown title field: $field" >&2
+            return 1
+        fi
+        if [ "${template:$index:1}" = "}" ]; then
+            echo "Unmatched closing brace in title template." >&2
+            return 1
+        fi
+        result+="${template:$index:1}"
+        index=$((index + 1))
+    done
+
+    printf '%s\n' "$result"
+}
+
 render_text_label() {
     local text="$1" destination="$2" density="$3"
     magick -background none -fill black -font "$paginate_font" \
@@ -1590,6 +1802,9 @@ run_paginate() {
     fi
     source="${matches[0]}"
     probe_single_image "$source" || return 1
+    if $title_set; then
+        title="$(expand_title_template "$title" "$source")" || return 1
+    fi
 
     paginate_work="$(mktemp -d "$tmpdir/paginate.XXXXXX")"
     prepared="$(prepare_paginate_source "$source" "$paginate_work")" || return 1

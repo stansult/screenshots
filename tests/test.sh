@@ -308,12 +308,27 @@ test_general_help() {
     run_script --help
     assert_status 0 || return 1
     [ "$short_help" = "$(cat "$CASE_DIR/stdout")" ] || fail '-h and --help differ' || return 1
-    for text in 'montage' 'zip' 'each' 'paginate' \
-        '--help montage' '--help zip' '--help each' '--help paginate'; do
+    for text in 'montage' 'zip' 'each' 'paginate' 'presets' \
+        '--help montage' '--help zip' '--help each' '--help paginate' '--help presets'; do
         assert_contains "$CASE_DIR/stdout" "$text" || return 1
     done
     assert_not_contains "$CASE_DIR/stdout" 'ceil((H - S)' || return 1
     assert_not_contains "$CASE_DIR/stdout" 'No usable font found'
+}
+
+test_presets_help() {
+    local long_help
+    new_case
+    run_script --help presets
+    assert_status 0 || return 1
+    long_help="$(cat "$CASE_DIR/stdout")"
+    assert_contains "$CASE_DIR/stdout" 'paginated-document' || return 1
+    assert_contains "$CASE_DIR/stdout" '{filename}' || return 1
+    assert_contains "$CASE_DIR/stdout" '{stem}' || return 1
+    run_script -h presets
+    assert_status 0 || return 1
+    [ "$long_help" = "$(cat "$CASE_DIR/stdout")" ] || \
+        fail '-h and --help differ for presets'
 }
 
 test_operational_timestamps() {
@@ -455,6 +470,8 @@ test_help_precedes_validation_and_dependencies() {
     assert_status 0 || return 1
     run_script_with_path '/bin:/usr/bin' --help paginate
     assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' --help presets
+    assert_status 0 || return 1
     run_script_with_path '/bin:/usr/bin' -h montage
     assert_status 0 || return 1
     run_script_with_path '/bin:/usr/bin' -h zip
@@ -462,6 +479,8 @@ test_help_precedes_validation_and_dependencies() {
     run_script_with_path '/bin:/usr/bin' -h each
     assert_status 0 || return 1
     run_script_with_path '/bin:/usr/bin' -h paginate
+    assert_status 0 || return 1
+    run_script_with_path '/bin:/usr/bin' -h presets
     assert_status 0 || return 1
     run_script_with_path '/bin:/usr/bin' --each --help
     assert_status 0 || return 1
@@ -481,6 +500,8 @@ test_help_creates_no_outputs() {
     run_script --help each
     assert_status 0 || return 1
     run_script --help paginate
+    assert_status 0 || return 1
+    run_script --help presets
     assert_status 0 || return 1
     run_script --each --help
     assert_status 0 || return 1
@@ -522,6 +543,91 @@ test_each_mode_rejects_font() {
     run_script -i '*.png' --each --font "$CASE_DIR/missing-font.ttf"
     [ "$RUN_STATUS" -ne 0 ] || fail '--font unexpectedly succeeded in each mode'
     assert_contains "$CASE_DIR/stderr" 'Each mode does not use: --font'
+}
+
+test_title_templates() {
+    new_case
+    make_image "$CASE_DIR/Report final.png" 100x300 red
+
+    run_script -i 'Report final.png' --paginate --header \
+        --title '{stem} {{draft}}' --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'Header title: Report final {draft}' || return 1
+
+    run_script -i 'Report final.png' --paginate --header \
+        --title '{filename}' --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'Header title: Report final.png' || return 1
+
+    run_script -i 'Report final.png' --paginate --header \
+        --title '{unknown}' --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'unknown title field unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Unknown title field: {unknown}' || return 1
+
+    run_script -i 'Report final.png' --paginate --header \
+        --title 'Report {stem' --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'unclosed title field unexpectedly succeeded'
+}
+
+test_paginated_document_preset() {
+    new_case
+    make_image "$CASE_DIR/Report final.png" 1000x500 red
+
+    run_script -i 'Report final.png' --preset paginated-document \
+        --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'overlap=50px' || return 1
+    assert_contains "$CASE_DIR/stderr" 'lines=true/true' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Header title: Report final' || return 1
+
+    run_script -i 'Report final.png' --overlap 10 --title Before \
+        --preset paginated-document --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'overlap=10px' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Header title: Before' || return 1
+
+    run_script -i 'Report final.png' --preset paginated-document \
+        --overlap 20 --title After --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'overlap=20px' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Header title: After' || return 1
+
+    run_script -i 'Report final.png' --no-header-line \
+        --preset paginated-document --no-footer-line --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'lines=false/false' || return 1
+
+    run_script -i 'Report final.png' --preset paginated-document \
+        --no-header --output-pages -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'header=0px footer=' || return 1
+    assert_not_contains "$CASE_DIR/stderr" 'Header title:'
+}
+
+test_preset_validation() {
+    new_case
+    make_image "$CASE_DIR/a.png" 100x300 red
+
+    run_script -i a.png --preset unknown
+    [ "$RUN_STATUS" -ne 0 ] || fail 'unknown preset unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Unknown preset: unknown' || return 1
+
+    run_script -i a.png --preset
+    [ "$RUN_STATUS" -ne 0 ] || fail 'preset without a value unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Available presets: paginated-document' || return 1
+    assert_contains "$CASE_DIR/stderr" '--help presets' || return 1
+
+    run_script -i a.png --preset paginated-document --preset paginated-document
+    [ "$RUN_STATUS" -ne 0 ] || fail 'repeated preset unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Option --preset given more than once' || return 1
+
+    run_script -i a.png --preset paginated-document --each
+    [ "$RUN_STATUS" -ne 0 ] || fail 'preset with conflicting mode unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'conflicts with --each' || return 1
+
+    run_script -i a.png --paginate --no-header-line --output-pages
+    [ "$RUN_STATUS" -ne 0 ] || fail 'preset-only negative option unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'only used to override a preset'
 }
 
 test_paginate_exact_page_boundary() {
@@ -1115,6 +1221,7 @@ run_test 'options with no effect are rejected' test_no_effect_options_are_reject
 run_test 'output is excluded from input glob' test_output_excluded_from_inputs
 run_test 'invalid arguments are rejected' test_argument_validation
 run_test 'general help is concise and complete' test_general_help
+run_test 'preset help is complete and consistent' test_presets_help
 run_test 'operational output is timestamped' test_operational_timestamps
 run_test 'mode help selects requested page' test_mode_help_pages
 run_test 'invalid help requests are rejected' test_invalid_help_requests
@@ -1124,6 +1231,9 @@ run_test 'automatic font discovery' test_automatic_font_discovery
 run_test 'explicit font selection' test_explicit_font
 run_test 'invalid font path is rejected' test_invalid_font
 run_test 'each mode rejects font' test_each_mode_rejects_font
+run_test 'title templates expand input names' test_title_templates
+run_test 'paginated-document preset applies defaults' test_paginated_document_preset
+run_test 'preset requests are validated' test_preset_validation
 run_test 'paginate exact page boundary' test_paginate_exact_page_boundary
 run_test 'paginate margin and final padding' test_paginate_margin_and_padding
 run_test 'paginate preserves every full-page margin' test_paginate_full_page_margins

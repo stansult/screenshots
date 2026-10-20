@@ -14,6 +14,7 @@ screenshot into page-sized PDF or PNG output.
   - [Zip mode](#zip-mode)
   - [Each mode](#each-mode)
   - [Paginate mode](#paginate-mode)
+- [Presets](#presets)
 - [Option reference](#option-reference)
   - [Input and output](#input-and-output)
   - [Sizing and cropping](#sizing-and-cropping)
@@ -72,6 +73,7 @@ screenshots.sh --help montage
 screenshots.sh --help zip
 screenshots.sh --help each
 screenshots.sh --help paginate
+screenshots.sh --help presets
 ```
 
 `-h` is an exact alias for `--help`, including topic forms such as
@@ -187,6 +189,20 @@ Existing crop and resize options work in paginate mode. Auto-orientation,
 cropping, and resizing happen before margins and page slicing. Montage and
 appearance options cannot be combined with `--paginate`.
 
+## Presets
+
+Presets are named bundles of existing options. They can select a mode, while
+explicit options override preset values regardless of their position in the
+command. Only one preset may be used per command.
+
+```bash
+screenshots.sh -i document.png --preset paginated-document
+```
+
+See [PRESETS.md](PRESETS.md) for the available presets, their exact option
+bundles, title fields, and override examples. For a concise command-line
+summary, use `screenshots.sh --help presets` or `screenshots.sh -h presets`.
+
 ## Option reference
 
 The mode-specific help pages are the authoritative command-line reference.
@@ -220,6 +236,9 @@ to one readable, regular, non-symlink, single-frame raster image.
 - `-e`, `--each` processes matched files separately instead of creating a
   montage.
 - `-p`, `--paginate` slices exactly one long image into pages.
+- `--preset NAME` applies one named option bundle. The preset may select a
+  mode; explicit options override its values in either argument order. See
+  [PRESETS.md](PRESETS.md) for the catalog.
 - `--output-pages` writes PNG pages to a fresh `pages-<timestamp>` directory
   instead of a PDF. With this option, `-o DIR` selects its parent directory,
   which is created recursively when missing.
@@ -257,7 +276,10 @@ to one readable, regular, non-symlink, single-frame raster image.
 - `--footer` adds 6-point `page/total-pages` numbering.
 - `--header-line` adds a 0.25-point `#d0d0d0` rule below an enabled header.
 - `--footer-line` adds the same rule above an enabled footer.
-- `--title TEXT` adds header-right text and requires `--header`.
+- `--title TEXT` adds header-right text and requires `--header`. `{filename}`
+  expands to the complete input filename and `{stem}` to its name without the
+  final extension. Use `{{` or `}}` for a literal brace; unknown or unmatched
+  fields are rejected.
 - `--page-font-size N` overrides the 6-point header/footer font size with a
   positive value below 24 points and requires `--header` or `--footer`.
 - `--font FILE` selects the visible header/footer font and requires `--header`
@@ -322,7 +344,7 @@ All options in this subsection require `--paginate`. `-O` is invalid with
 - `-v`, `--verbose` prints additional timestamped processing details to
   standard error.
 - `-h`, `--help` shows concise general help. Either spelling accepts
-  `montage`, `zip`, `each`, or `paginate` for complete mode help.
+  `montage`, `zip`, `each`, `paginate`, or `presets` for detailed help.
 
 ### Output behavior
 
