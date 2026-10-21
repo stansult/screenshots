@@ -430,10 +430,12 @@ prepare_preset_arguments() {
                 fi
             fi
         done
-        expanded_argv=("${preset_args[@]}" --__screenshots-preset-boundary__ "${user_args[@]}")
-        effective_args=("${preset_args[@]}" "${user_args[@]}")
+        expanded_argv=("${preset_args[@]+"${preset_args[@]}"}" \
+            --__screenshots-preset-boundary__ "${user_args[@]+"${user_args[@]}"}")
+        effective_args=("${preset_args[@]+"${preset_args[@]}"}" \
+            "${user_args[@]+"${user_args[@]}"}")
     else
-        expanded_argv=("${user_args[@]}")
+        expanded_argv=("${user_args[@]+"${user_args[@]}"}")
         effective_args=()
     fi
 }
@@ -981,7 +983,7 @@ load_preset_config
 handle_help_request "$@"
 prepare_preset_arguments "$@"
 if [ -n "$preset_name" ]; then preset_loading=true; fi
-set -- "${expanded_argv[@]}"
+set -- "${expanded_argv[@]+"${expanded_argv[@]}"}"
 
 if [ $# -eq 0 ]; then
     usage_general

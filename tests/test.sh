@@ -641,6 +641,16 @@ test_preset_validation() {
     new_case
     make_image "$CASE_DIR/a.png" 100x300 red
 
+    run_script --preset paginated-document
+    [ "$RUN_STATUS" -ne 0 ] || fail 'preset without input unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Missing required option: -i/--input' || return 1
+    assert_not_contains "$CASE_DIR/stderr" 'unbound variable' || return 1
+
+    run_script
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'screenshots.sh prepares' || return 1
+    assert_not_contains "$CASE_DIR/stderr" 'unbound variable' || return 1
+
     run_script -i a.png --preset unknown
     [ "$RUN_STATUS" -ne 0 ] || fail 'unknown preset unexpectedly succeeded' || return 1
     assert_contains "$CASE_DIR/stderr" 'Unknown preset: unknown' || return 1

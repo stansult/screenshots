@@ -169,6 +169,10 @@ Creation time is selected from embedded capture metadata, a recognized
 GoFullPage filename timestamp, filesystem creation time, then filesystem
 modification time. The header uses a compact format such as
 `Sep 10, 2026 · 11:52 PM`. Long titles are shortened with an ellipsis.
+To use a source capture time on a combined image, set its EXIF
+`DateTimeOriginal` before paginating; the header prioritizes this tag. For
+example: `exiftool -DateTimeOriginal='YYYY:MM:DD HH:MM:SS' combined.png`.
+ExifTool saves the original as a `_original` backup by default.
 
 Use `--output-pages` to create lossless PNG pages instead of a PDF. A fresh
 `pages-<timestamp>` directory is created in the current directory:
