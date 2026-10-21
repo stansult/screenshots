@@ -104,8 +104,8 @@ screenshots.sh -i "*.png" --tile 5x0 --gap 20x20
 ### Zip mode
 
 Use Zip to compare corresponding screens from different image sets.
-For example, compare the same mobile-app flow on iOS and Android to make
-platform differences easy to spot.
+For example, compare the same mobile-app flow on iOS and Android screen-by-screen to make
+platform-specific differences easy to spot.
 
 Two or more input patterns enable zip mode. Each pattern is independently
 sorted bytewise, then files at matching positions are placed together in a
@@ -129,7 +129,7 @@ tile layout overrides that default, but its column count is capped at N.
 
 Use Each to apply the same transformations to a batch while keeping each image
 separate.
-For example, resize a folder of similar screenshots to a consistent width.
+For example, resize a folder of similar screenshots to a consistent width, and cut-off the unneeded header from each.
 
 ![Several input screenshots transformed into separate output images](docs/images/each-mode.svg)
 
