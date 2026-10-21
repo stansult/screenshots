@@ -52,6 +52,10 @@ ln -s "$PWD/screenshots.sh" /usr/local/bin/screenshots.sh
 You can also run it directly from the cloned directory with
 `./screenshots.sh`.
 
+Keep `presets.conf` beside `screenshots.sh`; the script reads it at startup,
+even when you are not using a preset. See [Presets](PRESETS.md) to add or edit
+preset definitions.
+
 ## Usage
 
 ```text

@@ -503,6 +503,9 @@ test_help_creates_no_outputs() {
     assert_status 0 || return 1
     run_script --help presets
     assert_status 0 || return 1
+    run_script --preset paginated-document --help presets
+    assert_status 0 || return 1
+    assert_not_contains "$CASE_DIR/stdout" 'Effective command:' || return 1
     run_script --each --help
     assert_status 0 || return 1
     run_script --paginate --help
@@ -576,13 +579,32 @@ test_paginated_document_preset() {
     run_script -i 'Report final.png' --preset paginated-document \
         --output-pages -v
     assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'Effective command:' || return 1
+    assert_contains "$CASE_DIR/stdout" '--title {stem}' || return 1
+    assert_not_contains "$CASE_DIR/stdout" '\{stem\}' || return 1
+    assert_contains "$CASE_DIR/stdout" '--paginate' || return 1
+    assert_not_contains "$CASE_DIR/stdout" '--preset' || return 1
+    assert_not_contains "$CASE_DIR/stderr" 'Superseded preset options:' || return 1
     assert_contains "$CASE_DIR/stderr" 'overlap=50px' || return 1
     assert_contains "$CASE_DIR/stderr" 'lines=true/true' || return 1
     assert_contains "$CASE_DIR/stderr" 'Header title: Report final' || return 1
 
+    run_script -i 'Report final.png' --preset paginated-document --output-pages
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'Effective command:' || return 1
+    assert_contains "$CASE_DIR/stdout" '--overlap 50' || return 1
+    assert_not_contains "$CASE_DIR/stdout" '--preset' || return 1
+    assert_not_contains "$CASE_DIR/stderr" 'Superseded preset options:' || return 1
+
     run_script -i 'Report final.png' --overlap 10 --title Before \
         --preset paginated-document --output-pages -v
     assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'Effective command:' || return 1
+    assert_contains "$CASE_DIR/stdout" '--overlap 10' || return 1
+    assert_not_contains "$CASE_DIR/stdout" '--overlap 50' || return 1
+    assert_not_contains "$CASE_DIR/stdout" '--preset' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Superseded preset options:' || return 1
+    assert_contains "$CASE_DIR/stderr" '--overlap 50 superseded by --overlap 10' || return 1
     assert_contains "$CASE_DIR/stderr" 'overlap=10px' || return 1
     assert_contains "$CASE_DIR/stderr" 'Header title: Before' || return 1
 
@@ -600,6 +622,8 @@ test_paginated_document_preset() {
     run_script -i 'Report final.png' --preset paginated-document \
         --no-header --output-pages -v
     assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" '--header superseded by --no-header' || return 1
+    assert_contains "$CASE_DIR/stderr" '--header-line superseded by --no-header' || return 1
     assert_contains "$CASE_DIR/stderr" 'header=0px footer=' || return 1
     assert_not_contains "$CASE_DIR/stderr" 'Header title:'
 }
@@ -614,8 +638,13 @@ test_preset_validation() {
 
     run_script -i a.png --preset
     [ "$RUN_STATUS" -ne 0 ] || fail 'preset without a value unexpectedly succeeded' || return 1
-    assert_contains "$CASE_DIR/stderr" 'Available presets: paginated-document' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Available presets:' || return 1
+    assert_contains "$CASE_DIR/stderr" 'paginated-document' || return 1
     assert_contains "$CASE_DIR/stderr" '--help presets' || return 1
+
+    run_script -i a.png --preset ''
+    [ "$RUN_STATUS" -ne 0 ] || fail 'empty preset name unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'requires a non-empty name' || return 1
 
     run_script -i a.png --preset paginated-document --preset paginated-document
     [ "$RUN_STATUS" -ne 0 ] || fail 'repeated preset unexpectedly succeeded' || return 1
@@ -624,10 +653,96 @@ test_preset_validation() {
     run_script -i a.png --preset paginated-document --each
     [ "$RUN_STATUS" -ne 0 ] || fail 'preset with conflicting mode unexpectedly succeeded' || return 1
     assert_contains "$CASE_DIR/stderr" 'conflicts with --each' || return 1
+    assert_not_contains "$CASE_DIR/stdout" 'Effective command:' || return 1
 
     run_script -i a.png --paginate --no-header-line --output-pages
     [ "$RUN_STATUS" -ne 0 ] || fail 'preset-only negative option unexpectedly succeeded' || return 1
     assert_contains "$CASE_DIR/stderr" 'only used to override a preset'
+}
+
+test_presets_load_from_adjacent_config() {
+    local configured_script configured_config
+    new_case
+    make_image "$CASE_DIR/Report final.png" 1000x500 red
+    make_image "$CASE_DIR/crop-target.png" 100x100 red
+    configured_script="$CASE_DIR/screenshots.sh"
+    configured_config="$CASE_DIR/presets.conf"
+    cp "$SCRIPT" "$configured_script"
+    cp "$SCRIPT_DIR/presets.conf" "$configured_config"
+    {
+        printf '\n[smoke-page]\n'
+        printf '%s\n' '--paginate' '--header' '--overlap=17' '--title=QA {stem} copy'
+        printf '\n[crop-override]\n'
+        printf '%s\n' '--each' '--crop=10'
+        printf '\n[border-override]\n'
+        printf '%s\n' '--each' '--border=10'
+        printf '\n[invalid-width]\n'
+        printf '%s\n' '--each' '--width=not-a-number'
+    } >> "$configured_config"
+
+    (
+        cd "$CASE_DIR" || exit 1
+        "$configured_script" --help presets
+    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
+    RUN_STATUS=$?
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'smoke-page' || return 1
+
+    ln -s "$SCRIPT" "$CASE_DIR/linked-screenshots.sh"
+    (
+        cd "$CASE_DIR" || exit 1
+        ./linked-screenshots.sh --help presets
+    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
+    RUN_STATUS=$?
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" 'paginated-document' || return 1
+    assert_not_contains "$CASE_DIR/stdout" 'smoke-page' || return 1
+
+    (
+        cd "$CASE_DIR" || exit 1
+        "$configured_script" -i 'Report final.png' --preset smoke-page \
+            --output-pages -v
+    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
+    RUN_STATUS=$?
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'overlap=17px' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Header title: QA Report final copy'
+
+    (
+        cd "$CASE_DIR" || exit 1
+        "$configured_script" -i crop-target.png --preset crop-override --crop 2
+    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
+    RUN_STATUS=$?
+    assert_status 0 || return 1
+    local each_dir
+    each_dir="$(latest_directory "$CASE_DIR" 'each-*')"
+    assert_dimensions "$each_dir/crop-target.png" 96x96
+
+    (
+        cd "$CASE_DIR" || exit 1
+        "$configured_script" -i crop-target.png --preset border-override --border
+    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
+    RUN_STATUS=$?
+    assert_status 0 || return 1
+    each_dir="$(latest_directory "$CASE_DIR" 'each-*')"
+    assert_dimensions "$each_dir/crop-target.png" 102x102
+
+    (
+        cd "$CASE_DIR" || exit 1
+        "$configured_script" -i crop-target.png --preset invalid-width -w 50
+    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
+    RUN_STATUS=$?
+    assert_status 0 || return 1
+    each_dir="$(latest_directory "$CASE_DIR" 'each-*')"
+    assert_dimensions "$each_dir/crop-target.png" 50x50 || return 1
+
+    (
+        cd "$CASE_DIR" || exit 1
+        "$configured_script" -i crop-target.png --preset invalid-width
+    ) >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"
+    RUN_STATUS=$?
+    [ "$RUN_STATUS" -ne 0 ] || fail 'invalid selected preset value unexpectedly succeeded' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Invalid --width value: not-a-number'
 }
 
 test_paginate_exact_page_boundary() {
@@ -1234,6 +1349,7 @@ run_test 'each mode rejects font' test_each_mode_rejects_font
 run_test 'title templates expand input names' test_title_templates
 run_test 'paginated-document preset applies defaults' test_paginated_document_preset
 run_test 'preset requests are validated' test_preset_validation
+run_test 'presets load from adjacent config' test_presets_load_from_adjacent_config
 run_test 'paginate exact page boundary' test_paginate_exact_page_boundary
 run_test 'paginate margin and final padding' test_paginate_margin_and_padding
 run_test 'paginate preserves every full-page margin' test_paginate_full_page_margins

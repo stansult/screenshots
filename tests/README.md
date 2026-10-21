@@ -20,9 +20,11 @@ headers, footers, creation timestamps, preprocessing order, automatic output
 directories, parent-directory selection, atomic replacement, invalid input,
 dependency isolation, complete margin edges, zero-overlap row continuity,
 timestamp-source priority, large page-number width, and every incompatible
-pagination option. Preset coverage includes order-independent explicit
-overrides, negative decoration overrides, title-field expansion, and invalid
-fields or preset requests. Validation coverage also rejects mode-specific and
+pagination option. Preset coverage includes config loading from beside the
+script, dynamic preset listing, order-independent explicit overrides, negative
+decoration overrides, title-field expansion, effective-command reporting,
+superseded-option reporting, and invalid fields or preset requests. Validation
+coverage also rejects mode-specific and
 dependent options that would otherwise have no effect. Mode-help coverage
 includes all topics and explicit
 selectors, invalid/conflicting requests, dependency isolation, and confirmation

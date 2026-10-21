@@ -2,6 +2,19 @@
 
 set -euo pipefail
 
+preset_names=()
+preset_option_presets=()
+preset_option_names=()
+preset_option_values=()
+preset_option_has_values=()
+preset_config_file=""
+preset_name=""
+preset_args=()
+expanded_argv=()
+effective_args=()
+superseded_preset_options=()
+superseded_by_options=()
+
 usage_common_transform_options() {
     cat <<'EOF'
   -w, --width N          Shrink to a maximum width, preserving aspect ratio
@@ -82,9 +95,12 @@ Description:
   one preset may be used per command.
 
 Available presets:
-  paginated-document  Paginate with a {stem} title, header and footer,
-                      separator lines, 100px margins, 100px extra on each
-                      side, and 50px overlap
+EOF
+    local preset
+    for preset in "${preset_names[@]}"; do
+        printf '  %s\n' "$preset"
+    done
+    cat <<'EOF'
 
 Title fields:
   {filename}          Complete input filename, including its extension
@@ -96,12 +112,320 @@ Preset overrides:
   --no-header, --no-footer, --no-header-line, --no-footer-line
 
 Examples:
-  screenshots.sh -i document.png --preset paginated-document
-  screenshots.sh -i document.png --preset paginated-document --overlap 20
+  screenshots.sh -i document.png --preset NAME
+  screenshots.sh -i document.png --preset NAME --overlap 20
   screenshots.sh -i document.png --title "Copy of {filename}" --paginate --header
 
 See PRESETS.md for the complete preset catalog and expansion details.
 EOF
+}
+
+resolve_preset_config_path() {
+    local script_path="${BASH_SOURCE[0]}" script_dir link_target
+    while [ -L "$script_path" ]; do
+        script_dir="$(cd -P "$(dirname "$script_path")" >/dev/null 2>&1 && pwd)"
+        link_target="$(readlink "$script_path")" || {
+            echo "Unable to resolve screenshots.sh symlink: $script_path" >&2
+            exit 1
+        }
+        case "$link_target" in
+            /*) script_path="$link_target" ;;
+            *) script_path="$script_dir/$link_target" ;;
+        esac
+    done
+    script_dir="$(cd -P "$(dirname "$script_path")" >/dev/null 2>&1 && pwd)"
+    preset_config_file="$script_dir/presets.conf"
+    if [ ! -r "$preset_config_file" ]; then
+        echo "Preset configuration is missing or unreadable: $preset_config_file" >&2
+        exit 1
+    fi
+}
+
+preset_config_error() {
+    echo "Invalid preset configuration at $preset_config_file:$1: $2" >&2
+    exit 1
+}
+
+load_preset_config() {
+    local line line_number=0 section="" trimmed option value has_value index
+    while IFS= read -r line || [ -n "$line" ]; do
+        line_number=$((line_number + 1))
+        trimmed="${line#"${line%%[!$' \t']*}"}"
+        trimmed="${trimmed%"${trimmed##*[!$' \t']}"}"
+        [ -n "$trimmed" ] || continue
+        [[ "$trimmed" == \#* ]] && continue
+
+        if [[ "$trimmed" =~ ^\[([a-zA-Z0-9][a-zA-Z0-9_-]*)\]$ ]]; then
+            section="${BASH_REMATCH[1]}"
+            for index in "${!preset_names[@]}"; do
+                [ "${preset_names[$index]}" != "$section" ] || \
+                    preset_config_error "$line_number" "duplicate preset '$section'"
+            done
+            preset_names+=("$section")
+            continue
+        fi
+
+        [ -n "$section" ] || preset_config_error "$line_number" "option appears before a preset section"
+        if [[ "$trimmed" == *=* ]]; then
+            option="${trimmed%%=*}"
+            value="${trimmed#*=}"
+            has_value=true
+        else
+            option="$trimmed"
+            value=""
+            has_value=false
+        fi
+        [[ "$option" =~ ^--[a-z][a-z0-9-]*$ ]] || \
+            preset_config_error "$line_number" "expected a long option, optionally followed by '=VALUE'"
+
+        case "$option" in
+            --input|--output|--overwrite|--help|--preset|--verbose|--output-pages)
+                preset_config_error "$line_number" "option '$option' cannot be included in a preset"
+                ;;
+            --width|--height|--tile|--gap|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|--margin-top|--margin-right|--margin-bottom|--margin-left|--overlap|--title|--page-font-size)
+                $has_value || preset_config_error "$line_number" "option '$option' requires '=VALUE'"
+                ;;
+            --crop|--crop-top|--crop-bottom|--crop-left|--crop-right|--border)
+                ;;
+            --each|--paginate|--trim|--no-trim|--shadow|--header|--no-header|--footer|--no-footer|--header-line|--no-header-line|--footer-line|--no-footer-line)
+                ! $has_value || preset_config_error "$line_number" "option '$option' does not take a value"
+                ;;
+            *)
+                preset_config_error "$line_number" "unknown preset option '$option'"
+                ;;
+        esac
+
+        for index in "${!preset_option_presets[@]}"; do
+            if [ "${preset_option_presets[$index]}" = "$section" ] && \
+                [ "${preset_option_names[$index]}" = "$option" ]; then
+                preset_config_error "$line_number" "option '$option' is repeated in preset '$section'"
+            fi
+        done
+        preset_option_presets+=("$section")
+        preset_option_names+=("$option")
+        preset_option_values+=("$value")
+        preset_option_has_values+=("$has_value")
+    done < "$preset_config_file"
+
+    [ ${#preset_names[@]} -gt 0 ] || {
+        echo "Preset configuration contains no presets: $preset_config_file" >&2
+        exit 1
+    }
+}
+
+print_available_presets() {
+    local destination="$1" preset
+    if [ "$destination" = stderr ]; then
+        printf 'Available presets:\n' >&2
+        for preset in "${preset_names[@]}"; do printf '  %s\n' "$preset" >&2; done
+    else
+        printf 'Available presets:\n'
+        for preset in "${preset_names[@]}"; do printf '  %s\n' "$preset"; done
+    fi
+}
+
+preset_option_key() {
+    case "$1" in
+        -w|--width) echo --width ;;
+        -H|--height) echo --height ;;
+        -t|--tile) echo --tile ;;
+        -g|--gap) echo --gap ;;
+        -G|--gravity) echo --gravity ;;
+        -b|--border) echo --border ;;
+        -c|--crop) echo --crop ;;
+        -ct|--crop-top) echo --crop-top ;;
+        -cb|--crop-bottom) echo --crop-bottom ;;
+        -cl|--crop-left) echo --crop-left ;;
+        -cr|--crop-right) echo --crop-right ;;
+        -e|--each) echo --each ;;
+        -p|--paginate) echo --paginate ;;
+        -mt|--margin-top) echo --margin-top ;;
+        -mr|--margin-right) echo --margin-right ;;
+        -mb|--margin-bottom) echo --margin-bottom ;;
+        -ml|--margin-left) echo --margin-left ;;
+        --trim|--no-trim) echo --trim ;;
+        --header|--no-header) echo --header ;;
+        --footer|--no-footer) echo --footer ;;
+        --header-line|--no-header-line) echo --header-line ;;
+        --footer-line|--no-footer-line) echo --footer-line ;;
+        *) echo "$1" ;;
+    esac
+}
+
+preset_option_is_superseded() {
+    local preset_option="$1" explicit_option="$2"
+    if [ "$(preset_option_key "$preset_option")" = \
+        "$(preset_option_key "$explicit_option")" ]; then
+        return 0
+    fi
+    case "$explicit_option" in
+        --no-header)
+            [[ "$preset_option" == --header-line || "$preset_option" == --title ]] && return 0
+            ;;
+        --no-footer)
+            [[ "$preset_option" == --footer-line ]] && return 0
+            ;;
+    esac
+    return 1
+}
+
+format_shell_words() {
+    local result="" word quoted
+    for word in "$@"; do
+        if [[ "$word" =~ ^\{[[:alpha:]_][[:alnum:]_]*\}$ ]]; then
+            quoted="$word"
+        else
+            printf -v quoted '%q' "$word"
+        fi
+        if [ -n "$result" ]; then result+=" "; fi
+        result+="$quoted"
+    done
+    printf '%s' "$result"
+}
+
+prepare_preset_arguments() {
+    local -a original=("$@") user_args=()
+    local -a explicit_option_displays=() explicit_option_values=() explicit_option_has_values=()
+    local index=0 token next count=0 option_index found=false overridden
+    local explicit_option_index override_index preset_display
+    while [ "$index" -lt "${#original[@]}" ]; do
+        token="${original[$index]}"
+        case "$token" in
+            --)
+                while [ "$index" -lt "${#original[@]}" ]; do
+                    user_args+=("${original[$index]}")
+                    index=$((index + 1))
+                done
+                break
+                ;;
+            --__screenshots-preset-boundary__)
+                echo "Unknown option: $token" >&2
+                echo "Run with --help for usage." >&2
+                exit 1
+                ;;
+            --preset)
+                count=$((count + 1))
+                if [ $((index + 1)) -ge "${#original[@]}" ]; then
+                    echo "Option --preset requires an argument." >&2
+                    print_available_presets stderr
+                    echo "Run with --help presets for details." >&2
+                    exit 1
+                fi
+                if [ "$count" -gt 1 ]; then
+                    echo "Option --preset given more than once." >&2
+                    echo "Run with --help presets for usage." >&2
+                    exit 1
+                fi
+                preset_name="${original[$((index + 1))]}"
+                if [ -z "$preset_name" ]; then
+                    echo "Option --preset requires a non-empty name." >&2
+                    print_available_presets stderr
+                    echo "Run with --help presets for details." >&2
+                    exit 1
+                fi
+                index=$((index + 2))
+                continue
+                ;;
+        esac
+
+        user_args+=("$token")
+        if [[ "$token" == -* ]]; then
+            explicit_option_displays+=("$token")
+            explicit_option_values+=("")
+            explicit_option_has_values+=(false)
+            explicit_option_index=$((${#explicit_option_displays[@]} - 1))
+        else
+            explicit_option_index=-1
+        fi
+        case "$token" in
+            -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
+                if [ $((index + 1)) -lt "${#original[@]}" ]; then
+                    next="${original[$((index + 1))]}"
+                    user_args+=("$next")
+                    if [ "$explicit_option_index" -ge 0 ]; then
+                        explicit_option_values[$explicit_option_index]="$next"
+                        explicit_option_has_values[$explicit_option_index]=true
+                    fi
+                    index=$((index + 2))
+                else
+                    index=$((index + 1))
+                fi
+                continue
+                ;;
+            -b|--border|-c|--crop|-ct|--crop-top|-cb|--crop-bottom|-cl|--crop-left|-cr|--crop-right)
+                if [ $((index + 1)) -lt "${#original[@]}" ]; then
+                    next="${original[$((index + 1))]}"
+                    if [[ "$next" =~ ^[0-9]+$ ]]; then
+                        user_args+=("$next")
+                        if [ "$explicit_option_index" -ge 0 ]; then
+                            explicit_option_values[$explicit_option_index]="$next"
+                            explicit_option_has_values[$explicit_option_index]=true
+                        fi
+                        index=$((index + 2))
+                        continue
+                    fi
+                fi
+                ;;
+        esac
+        index=$((index + 1))
+    done
+
+    if [ -n "$preset_name" ]; then
+        for index in "${!preset_names[@]}"; do
+            if [ "${preset_names[$index]}" = "$preset_name" ]; then
+                found=true
+                break
+            fi
+        done
+        if ! $found; then
+            echo "Unknown preset: $preset_name" >&2
+            print_available_presets stderr
+            echo "Run with --help presets for details." >&2
+            exit 1
+        fi
+        for option_index in "${!preset_option_presets[@]}"; do
+            if [ "${preset_option_presets[$option_index]}" = "$preset_name" ]; then
+                overridden=false
+                override_index=-1
+                for index in "${!explicit_option_displays[@]}"; do
+                    if preset_option_is_superseded \
+                        "${preset_option_names[$option_index]}" \
+                        "${explicit_option_displays[$index]}"; then
+                        overridden=true
+                        override_index="$index"
+                    fi
+                done
+                if $overridden; then
+                    preset_display="$(format_shell_words \
+                        "${preset_option_names[$option_index]}" \
+                        "${preset_option_values[$option_index]}")"
+                    if [ "${preset_option_has_values[$option_index]}" = false ]; then
+                        preset_display="$(format_shell_words \
+                            "${preset_option_names[$option_index]}")"
+                    fi
+                    if [ "${explicit_option_has_values[$override_index]}" = true ]; then
+                        superseded_by_options+=("$(format_shell_words \
+                            "${explicit_option_displays[$override_index]}" \
+                            "${explicit_option_values[$override_index]}")")
+                    else
+                        superseded_by_options+=("$(format_shell_words \
+                            "${explicit_option_displays[$override_index]}")")
+                    fi
+                    superseded_preset_options+=("$preset_display")
+                    continue
+                fi
+                preset_args+=("${preset_option_names[$option_index]}")
+                if [ "${preset_option_has_values[$option_index]}" = true ]; then
+                    preset_args+=("${preset_option_values[$option_index]}")
+                fi
+            fi
+        done
+        expanded_argv=("${preset_args[@]}" --__screenshots-preset-boundary__ "${user_args[@]}")
+        effective_args=("${preset_args[@]}" "${user_args[@]}")
+    else
+        expanded_argv=("${user_args[@]}")
+        effective_args=()
+    fi
 }
 
 usage_montage() {
@@ -494,6 +818,11 @@ crop_top_seen=0; crop_top_val=0
 crop_bottom_seen=0; crop_bottom_val=0
 crop_left_seen=0; crop_left_val=0
 crop_right_seen=0; crop_right_val=0
+crop_all_explicit=false
+crop_top_explicit=false
+crop_bottom_explicit=false
+crop_left_explicit=false
+crop_right_explicit=false
 force_overwrite=false
 verbose=false
 shadow_color="gray"
@@ -503,8 +832,7 @@ border_width="1"
 border_color="black"
 each_mode=false
 paginate_mode=false
-preset_name=""
-preset_count=0
+preset_loading=false
 paper="letter"
 paper_custom_width=""
 paper_custom_height=""
@@ -521,6 +849,10 @@ margin_top_set=false
 margin_right_set=false
 margin_bottom_set=false
 margin_left_set=false
+margin_top_explicit=false
+margin_right_explicit=false
+margin_bottom_explicit=false
+margin_left_explicit=false
 overlap_set=false
 output_pages_set=false
 header_set=false
@@ -531,10 +863,17 @@ header_choice=""
 footer_choice=""
 header_line_choice=""
 footer_line_choice=""
+header_choice_explicit=false
+footer_choice_explicit=false
+header_line_choice_explicit=false
+footer_line_choice_explicit=false
+title_from_preset=false
 title=""
 title_set=false
+title_explicit=false
 page_font_size="6"
 page_font_size_set=false
+page_font_size_explicit=false
 gap_set=false
 gravity_set=false
 background_set=false
@@ -627,7 +966,12 @@ log() {
     fi
 }
 
+resolve_preset_config_path
+load_preset_config
 handle_help_request "$@"
+prepare_preset_arguments "$@"
+if [ -n "$preset_name" ]; then preset_loading=true; fi
+set -- "${expanded_argv[@]}"
 
 if [ $# -eq 0 ]; then
     usage_general
@@ -636,15 +980,10 @@ fi
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size|--preset)
+        -i|--input|-o|--output|-w|--width|-H|--height|-t|--tile|-g|--gap|-G|--gravity|--background|--shadow-color|--font|--border-color|--trim-fuzz|--paper|--margin|-mt|--margin-top|-mr|--margin-right|-mb|--margin-bottom|-ml|--margin-left|--overlap|--title|--page-font-size)
             if [ $# -lt 2 ]; then
                 echo "Option $1 requires an argument." >&2
-                if [ "$1" = "--preset" ]; then
-                    echo "Available presets: paginated-document" >&2
-                    echo "Run with --help presets for details." >&2
-                else
-                    echo "Run with --help for usage." >&2
-                fi
+                echo "Run with --help for usage." >&2
                 exit 1
             fi
             ;;
@@ -653,6 +992,10 @@ while [ $# -gt 0 ]; do
         -h|--help)
             usage_general
             exit 0
+            ;;
+        --__screenshots-preset-boundary__)
+            preset_loading=false
+            shift
             ;;
         -i|--input)
             input_patterns+=("$2")
@@ -755,6 +1098,10 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         -c|--crop)
+            if ! $preset_loading; then
+                if ! $crop_all_explicit; then crop_all_seen=0; fi
+                crop_all_explicit=true
+            fi
             crop_all_seen=$((crop_all_seen + 1))
             if [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]]; then
                 crop_all_val="$2"
@@ -764,6 +1111,10 @@ while [ $# -gt 0 ]; do
             fi
             ;;
         -ct|--crop-top)
+            if ! $preset_loading; then
+                if ! $crop_top_explicit; then crop_top_seen=0; fi
+                crop_top_explicit=true
+            fi
             crop_top_seen=$((crop_top_seen + 1))
             if [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]]; then
                 crop_top_val="$2"
@@ -773,6 +1124,10 @@ while [ $# -gt 0 ]; do
             fi
             ;;
         -cb|--crop-bottom)
+            if ! $preset_loading; then
+                if ! $crop_bottom_explicit; then crop_bottom_seen=0; fi
+                crop_bottom_explicit=true
+            fi
             crop_bottom_seen=$((crop_bottom_seen + 1))
             if [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]]; then
                 crop_bottom_val="$2"
@@ -782,6 +1137,10 @@ while [ $# -gt 0 ]; do
             fi
             ;;
         -cl|--crop-left)
+            if ! $preset_loading; then
+                if ! $crop_left_explicit; then crop_left_seen=0; fi
+                crop_left_explicit=true
+            fi
             crop_left_seen=$((crop_left_seen + 1))
             if [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]]; then
                 crop_left_val="$2"
@@ -791,6 +1150,10 @@ while [ $# -gt 0 ]; do
             fi
             ;;
         -cr|--crop-right)
+            if ! $preset_loading; then
+                if ! $crop_right_explicit; then crop_right_seen=0; fi
+                crop_right_explicit=true
+            fi
             crop_right_seen=$((crop_right_seen + 1))
             if [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]]; then
                 crop_right_val="$2"
@@ -807,16 +1170,6 @@ while [ $# -gt 0 ]; do
             paginate_mode=true
             shift
             ;;
-        --preset)
-            preset_count=$((preset_count + 1))
-            if [ "$preset_count" -gt 1 ]; then
-                echo "Option --preset given more than once." >&2
-                echo "Run with --help presets for usage." >&2
-                exit 1
-            fi
-            preset_name="$2"
-            shift 2
-            ;;
         --paper)
             paper="$2"
             paper_set=true
@@ -828,37 +1181,41 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         -mt|--margin-top)
-            if $margin_top_set; then
+            if ! $preset_loading && $margin_top_explicit; then
                 echo "Option -mt/--margin-top given more than once." >&2
                 exit 1
             fi
+            if ! $preset_loading; then margin_top_explicit=true; fi
             margin_top_extra="$2"
             margin_top_set=true
             shift 2
             ;;
         -mr|--margin-right)
-            if $margin_right_set; then
+            if ! $preset_loading && $margin_right_explicit; then
                 echo "Option -mr/--margin-right given more than once." >&2
                 exit 1
             fi
+            if ! $preset_loading; then margin_right_explicit=true; fi
             margin_right_extra="$2"
             margin_right_set=true
             shift 2
             ;;
         -mb|--margin-bottom)
-            if $margin_bottom_set; then
+            if ! $preset_loading && $margin_bottom_explicit; then
                 echo "Option -mb/--margin-bottom given more than once." >&2
                 exit 1
             fi
+            if ! $preset_loading; then margin_bottom_explicit=true; fi
             margin_bottom_extra="$2"
             margin_bottom_set=true
             shift 2
             ;;
         -ml|--margin-left)
-            if $margin_left_set; then
+            if ! $preset_loading && $margin_left_explicit; then
                 echo "Option -ml/--margin-left given more than once." >&2
                 exit 1
             fi
+            if ! $preset_loading; then margin_left_explicit=true; fi
             margin_left_extra="$2"
             margin_left_set=true
             shift 2
@@ -875,59 +1232,69 @@ while [ $# -gt 0 ]; do
         --header)
             header_set=true
             header_choice=true
+            if ! $preset_loading; then header_choice_explicit=true; fi
             shift
             ;;
         --no-header)
             header_set=false
             header_choice=false
+            if ! $preset_loading; then header_choice_explicit=true; fi
             shift
             ;;
         --footer)
             footer_set=true
             footer_choice=true
+            if ! $preset_loading; then footer_choice_explicit=true; fi
             shift
             ;;
         --no-footer)
             footer_set=false
             footer_choice=false
+            if ! $preset_loading; then footer_choice_explicit=true; fi
             shift
             ;;
         --header-line)
             header_line_set=true
             header_line_choice=true
+            if ! $preset_loading; then header_line_choice_explicit=true; fi
             shift
             ;;
         --no-header-line)
             header_line_set=false
             header_line_choice=false
+            if ! $preset_loading; then header_line_choice_explicit=true; fi
             shift
             ;;
         --footer-line)
             footer_line_set=true
             footer_line_choice=true
+            if ! $preset_loading; then footer_line_choice_explicit=true; fi
             shift
             ;;
         --no-footer-line)
             footer_line_set=false
             footer_line_choice=false
+            if ! $preset_loading; then footer_line_choice_explicit=true; fi
             shift
             ;;
         --title)
-            if $title_set; then
+            if ! $preset_loading && $title_explicit; then
                 echo "Option --title given more than once." >&2
                 echo "Run with --help for usage." >&2
                 exit 1
             fi
+            if ! $preset_loading; then title_explicit=true; else title_from_preset=true; fi
             title="$2"
             title_set=true
             shift 2
             ;;
         --page-font-size)
-            if $page_font_size_set; then
+            if ! $preset_loading && $page_font_size_explicit; then
                 echo "Option --page-font-size given more than once." >&2
                 echo "Run with --help for usage." >&2
                 exit 1
             fi
+            if ! $preset_loading; then page_font_size_explicit=true; fi
             page_font_size="$2"
             page_font_size_set=true
             shift 2
@@ -954,59 +1321,6 @@ if [ $# -gt 0 ]; then
     exit 1
 fi
 
-case "$preset_name" in
-    "")
-        ;;
-    paginated-document)
-        if $each_mode; then
-            echo "Preset 'paginated-document' conflicts with --each." >&2
-            exit 1
-        fi
-        paginate_mode=true
-        if ! $overlap_set; then
-            overlap="50"
-        fi
-        if ! $margin_set; then
-            margin="100"
-        fi
-        if ! $margin_left_set; then
-            margin_left_extra="100"
-        fi
-        if ! $margin_right_set; then
-            margin_right_extra="100"
-        fi
-        if [ -z "$header_choice" ]; then
-            header_set=true
-        fi
-        if [ -z "$footer_choice" ]; then
-            footer_set=true
-        fi
-        if $header_set; then
-            if [ -z "$header_line_choice" ]; then
-                header_line_set=true
-            fi
-            if ! $title_set; then
-                title="{stem}"
-                title_set=true
-            fi
-        elif [ -z "$header_line_choice" ]; then
-            header_line_set=false
-        fi
-        if $footer_set; then
-            if [ -z "$footer_line_choice" ]; then
-                footer_line_set=true
-            fi
-        elif [ -z "$footer_line_choice" ]; then
-            footer_line_set=false
-        fi
-        ;;
-    *)
-        echo "Unknown preset: $preset_name" >&2
-        echo "Run with --help presets to list available presets." >&2
-        exit 1
-        ;;
-esac
-
 if [ ${#input_patterns[@]} -eq 0 ]; then
     echo "Missing required option: -i/--input" >&2
     echo "Run with --help for usage." >&2
@@ -1025,6 +1339,20 @@ elif $each_mode; then
     mode="each"
 elif $zip_mode; then
     mode="zip"
+fi
+
+if $header_choice_explicit && [ "$header_choice" = false ] && \
+    ! $header_line_choice_explicit; then
+    header_line_set=false
+fi
+if $footer_choice_explicit && [ "$footer_choice" = false ] && \
+    ! $footer_line_choice_explicit; then
+    footer_line_set=false
+fi
+if $title_from_preset && $header_choice_explicit && \
+    [ "$header_choice" = false ] && ! $title_explicit; then
+    title=""
+    title_set=false
 fi
 
 if [ -z "$preset_name" ] && { [ "$header_choice" = "false" ] || \
@@ -1071,7 +1399,11 @@ if $paginate_mode && $font_set && ! $header_set && ! $footer_set; then
 fi
 
 if $paginate_mode && $each_mode; then
-    echo "--paginate and --each are mutually exclusive." >&2
+    if [ -n "$preset_name" ]; then
+        echo "Preset '$preset_name' conflicts with --each and --paginate." >&2
+    else
+        echo "--paginate and --each are mutually exclusive." >&2
+    fi
     exit 1
 fi
 
@@ -1148,10 +1480,6 @@ if [ ${#no_op_errors[@]} -gt 0 ]; then
         echo "  $no_op_error" >&2
     done
     exit 1
-fi
-
-if [ -n "$preset_name" ]; then
-    log "Preset: $preset_name -> paginate=$paginate_mode header=$header_set footer=$footer_set lines=${header_line_set}/${footer_line_set} overlap=${overlap}px title='$title'"
 fi
 
 if ! command -v magick >/dev/null 2>&1; then
@@ -2122,6 +2450,22 @@ run_montage_and_finalize() {
 all_output_list=()
 tmpdir="$(mktemp -d /tmp/screenshots.XXXXXX)"
 out_tmpdir="$(mktemp -d /tmp/screenshots.out.XXXXXX)"
+
+if [ -n "$preset_name" ]; then
+    effective_command="$(format_shell_words "$0" "${effective_args[@]}")"
+    operational_message stdout "Effective command: $effective_command"
+
+    if $verbose && [ ${#superseded_preset_options[@]} -gt 0 ]; then
+        superseded_text=""
+        for preset_index in "${!superseded_preset_options[@]}"; do
+            if [ -n "$superseded_text" ]; then superseded_text+="; "; fi
+            superseded_text+="${superseded_preset_options[$preset_index]} superseded by ${superseded_by_options[$preset_index]}"
+        done
+        log "Superseded preset options: $superseded_text"
+    fi
+
+    log "Preset: $preset_name -> paginate=$paginate_mode header=$header_set footer=$footer_set lines=${header_line_set}/${footer_line_set} overlap=${overlap}px title='$title'"
+fi
 
 case "$mode" in
     paginate) operational_message stdout "processing: ${input_patterns[0]}" ;;

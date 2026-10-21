@@ -12,6 +12,35 @@ screenshots.sh -i document.png --preset paginated-document
 Use `screenshots.sh --help presets` or `screenshots.sh -h presets` for a
 concise command-line summary.
 
+When a preset is selected, the script prints a copyable, shell-escaped effective
+command before processing. Simple title fields such as `{stem}` are shown
+without unnecessary backslashes. The command shows the preset options that
+remain after overrides, along with the command-line options; `--preset` itself
+is omitted. With `--verbose`, the script also lists any preset options
+superseded by explicit options and what replaced them. It omits that line when
+no preset options were superseded.
+
+Preset definitions live in `presets.conf` beside the script and are read each
+time it starts. Keep that file with `screenshots.sh`. To add one, copy a
+section, rename its heading, and edit the options:
+
+```ini
+[paginated-document]
+--paginate
+--header
+--margin=100
+--title={stem}
+```
+
+Use one long option per line. Write options that take a value as
+`--option=VALUE`; everything after the first `=` is the value, so spaces are
+allowed. Blank lines and lines beginning with `#` are ignored. Presets can
+include existing processing and appearance options, but not input/output
+paths, overwrite, verbosity, help, preset selection, or output type. The script
+validates the configuration at startup and lists configured preset names in help and
+missing/unknown-preset errors. This repository-maintained file is the place
+to add presets; there is no separate per-user config or CLI creation feature.
+
 ## Title fields
 
 Title fields work in every explicit `--title` value as well as preset-provided
