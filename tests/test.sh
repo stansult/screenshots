@@ -573,6 +573,7 @@ test_title_templates() {
 }
 
 test_paginated_document_preset() {
+    local superseded_block
     new_case
     make_image "$CASE_DIR/Report final.png" 1000x500 red
 
@@ -589,6 +590,12 @@ test_paginated_document_preset() {
     assert_contains "$CASE_DIR/stderr" 'lines=true/true' || return 1
     assert_contains "$CASE_DIR/stderr" 'Header title: Report final' || return 1
 
+    run_script -i 'Report final.png' --preset paginated-document \
+        --title "HealthEdge — O'Brien" --output-pages
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stdout" "--title 'HealthEdge — O'\\''Brien'" || return 1
+    assert_not_contains "$CASE_DIR/stdout" "\$'HealthEdge" || return 1
+
     run_script -i 'Report final.png' --preset paginated-document --output-pages
     assert_status 0 || return 1
     assert_contains "$CASE_DIR/stdout" 'Effective command:' || return 1
@@ -604,7 +611,9 @@ test_paginated_document_preset() {
     assert_not_contains "$CASE_DIR/stdout" '--overlap 50' || return 1
     assert_not_contains "$CASE_DIR/stdout" '--preset' || return 1
     assert_contains "$CASE_DIR/stderr" 'Superseded preset options:' || return 1
-    assert_contains "$CASE_DIR/stderr" '--overlap 50 superseded by --overlap 10' || return 1
+    superseded_block="$(sed -n '/Superseded preset options:/,+2p' "$CASE_DIR/stderr" | sed '1s/^.*] //')"
+    [ "$superseded_block" = $'Superseded preset options:\n--overlap 50 → --overlap 10\n--title {stem} → --title Before' ] || \
+        fail "unexpected superseded-options block: $superseded_block" || return 1
     assert_contains "$CASE_DIR/stderr" 'overlap=10px' || return 1
     assert_contains "$CASE_DIR/stderr" 'Header title: Before' || return 1
 
@@ -622,8 +631,8 @@ test_paginated_document_preset() {
     run_script -i 'Report final.png' --preset paginated-document \
         --no-header --output-pages -v
     assert_status 0 || return 1
-    assert_contains "$CASE_DIR/stderr" '--header superseded by --no-header' || return 1
-    assert_contains "$CASE_DIR/stderr" '--header-line superseded by --no-header' || return 1
+    assert_contains "$CASE_DIR/stderr" '--header → --no-header' || return 1
+    assert_contains "$CASE_DIR/stderr" '--header-line → --no-header' || return 1
     assert_contains "$CASE_DIR/stderr" 'header=0px footer=' || return 1
     assert_not_contains "$CASE_DIR/stderr" 'Header title:'
 }

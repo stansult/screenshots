@@ -270,12 +270,22 @@ preset_option_is_superseded() {
 }
 
 format_shell_words() {
-    local result="" word quoted
+    local result="" word quoted char index
     for word in "$@"; do
-        if [[ "$word" =~ ^\{[[:alpha:]_][[:alnum:]_]*\}$ ]]; then
+        if [[ "$word" =~ ^[a-zA-Z0-9_./:-]+$ ]] || \
+            [[ "$word" =~ ^\{[[:alpha:]_][[:alnum:]_]*\}$ ]]; then
             quoted="$word"
         else
-            printf -v quoted '%q' "$word"
+            quoted="'"
+            for ((index = 0; index < ${#word}; index++)); do
+                char="${word:index:1}"
+                if [ "$char" = "'" ]; then
+                    quoted+="'\\''"
+                else
+                    quoted+="$char"
+                fi
+            done
+            quoted+="'"
         fi
         if [ -n "$result" ]; then result+=" "; fi
         result+="$quoted"
@@ -2458,10 +2468,9 @@ if [ -n "$preset_name" ]; then
     if $verbose && [ ${#superseded_preset_options[@]} -gt 0 ]; then
         superseded_text=""
         for preset_index in "${!superseded_preset_options[@]}"; do
-            if [ -n "$superseded_text" ]; then superseded_text+="; "; fi
-            superseded_text+="${superseded_preset_options[$preset_index]} superseded by ${superseded_by_options[$preset_index]}"
+            superseded_text+=$'\n'"${superseded_preset_options[$preset_index]} → ${superseded_by_options[$preset_index]}"
         done
-        log "Superseded preset options: $superseded_text"
+        log "Superseded preset options:$superseded_text"
     fi
 
     log "Preset: $preset_name -> paginate=$paginate_mode header=$header_set footer=$footer_set lines=${header_line_set}/${footer_line_set} overlap=${overlap}px title='$title'"
