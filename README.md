@@ -85,6 +85,10 @@ screenshots.sh --help presets
 
 ### Montage mode
 
+Use Montage to combine multiple images into a single grid.
+For example, arrange mobile-app screenshots in flow order, then add arrows or
+notes to illustrate the user journey.
+
 One input pattern produces a single grid image. Matches are pathname-sorted.
 The default output is `output.png`; when the output itself matches the input
 pattern, it is excluded from the inputs.
@@ -98,6 +102,10 @@ screenshots.sh -i "*.png" --tile 5x0 --gap 20x20
 ```
 
 ### Zip mode
+
+Use Zip to compare corresponding screens from different image sets.
+For example, compare the same mobile-app flow on iOS and Android to make
+platform differences easy to spot.
 
 Two or more input patterns enable zip mode. Each pattern is independently
 sorted bytewise, then files at matching positions are placed together in a
@@ -119,8 +127,9 @@ tile layout overrides that default, but its column count is capped at N.
 
 ### Each mode
 
-Each mode transforms every matched image separately without creating a
-montage:
+Use Each to apply the same transformations to a batch while keeping each image
+separate.
+For example, resize a folder of similar screenshots to a consistent width.
 
 ![Several input screenshots transformed into separate output images](docs/images/each-mode.svg)
 
@@ -133,9 +142,14 @@ Results retain their original filenames and are written to a new timestamped
 
 ### Paginate mode
 
-Paginate mode accepts exactly one single-frame raster image. It slices the
-image from top to bottom into portrait Letter, A4, or Legal pages. Output is
-raster-only and no OCR or text layer is added.
+Use Paginate to split one long screenshot into fixed-ratio pages for printing or
+sharing.
+For example, capture a long web page with GoFullPage or a similar full-page
+capture tool, then paginate the resulting image.
+
+It accepts exactly one single-frame raster image and slices it from top to
+bottom into portrait Letter, A4, or Legal pages. Output is raster-only and no
+OCR or text layer is added.
 
 ![One long screenshot divided into fixed-ratio pages](docs/images/paginate-mode.svg)
 
