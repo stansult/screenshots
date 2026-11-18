@@ -30,6 +30,8 @@ screenshot into page-sized PDF or PNG output.
 - Bash 3.2 or newer
 - [ImageMagick](https://imagemagick.org/) with `magick` on `PATH`
 - The separate ImageMagick `montage` command for montage and zip modes
+- Perl with `Time::HiRes` and `CLOCK_MONOTONIC` for interactive or verbose
+  stage timing
 - A discoverable system font for montage and zip modes, and for pagination
   when a header or footer is enabled
 
@@ -52,9 +54,8 @@ ln -s "$PWD/screenshots.sh" /usr/local/bin/screenshots.sh
 You can also run it directly from the cloned directory with
 `./screenshots.sh`.
 
-Keep `presets.conf` beside `screenshots.sh`; the script reads it at startup,
-even when you are not using a preset. See [Presets](PRESETS.md) to add or edit
-preset definitions.
+Keep `presets.conf` and `progress.sh` beside `screenshots.sh`; the script reads
+them at startup. See [Presets](PRESETS.md) to add or edit preset definitions.
 
 ## Usage
 
@@ -362,7 +363,12 @@ All options in this subsection require `--paginate`. `-O` is invalid with
   and verbose runs. A `[YYYY-MM-DD]` line precedes the first message and is
   repeated at the end only when the run crosses midnight. Continuation lines
   and help output remain undecorated. Every run reports `processing:` before
-  work begins so its elapsed time is visible from the final output timestamp.
+  work begins. Interactive stderr shows live stage progress with elapsed
+  seconds after 5 seconds; completed stages show a finish timestamp and a
+  `(took N.Ns)` duration only when they take at least 10 seconds. Verbose mode
+  prints timestamped stage starts and completions instead of a spinner, even
+  when stderr is redirected. Stage durations use Perl `Time::HiRes` monotonic
+  time, so wall-clock adjustments do not affect them.
 - `-v`, `--verbose` prints additional timestamped processing details to
   standard error.
 - `-h`, `--help` shows concise general help. Either spelling accepts

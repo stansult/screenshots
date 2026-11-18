@@ -78,7 +78,9 @@ Examples:
 
 Operational output uses local [HH:MM:SS] timestamps. A local [YYYY-MM-DD]
 line appears before the first message and again at the end only if the date
-changed. Help output remains undecorated.
+changed. Interactive stderr shows live stage progress; verbose mode prints
+timestamped stage starts and completions. These timing features require Perl
+with Time::HiRes and CLOCK_MONOTONIC. Help output remains undecorated.
 EOF
 }
 
@@ -139,6 +141,12 @@ resolve_preset_config_path() {
         echo "Preset configuration is missing or unreadable: $preset_config_file" >&2
         exit 1
     fi
+    if [ ! -r "$script_dir/progress.sh" ]; then
+        echo "Progress helper is missing or unreadable: $script_dir/progress.sh" >&2
+        exit 1
+    fi
+    # shellcheck source=progress.sh
+    source "$script_dir/progress.sh"
 }
 
 preset_config_error() {
@@ -940,6 +948,12 @@ operational_message() {
     operational_block "$1" "$2"
 }
 
+operational_message_at() {
+    local stream="$1" timestamp="$2" text="$3"
+    begin_operational_output "$stream"
+    raw_output_line "$stream" "[$timestamp] $text"
+}
+
 finish_operational_output() {
     local end_date
     [ "$operational_output_started" -eq 1 ] || return 0
@@ -958,6 +972,7 @@ report_outputs() {
 }
 
 cleanup() {
+    progress_abort
     if [ -n "$tmpdir" ] && [ -d "$tmpdir" ]; then
         rm -rf "$tmpdir"
     fi
@@ -970,7 +985,11 @@ cleanup() {
     fi
     finish_operational_output
 }
-trap cleanup EXIT
+handle_signal() {
+    local status="$1"
+    trap - INT TERM
+    exit "$status"
+}
 
 log() {
     if $verbose; then
@@ -980,6 +999,9 @@ log() {
 
 resolve_preset_config_path
 load_preset_config
+trap cleanup EXIT
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
 handle_help_request "$@"
 prepare_preset_arguments "$@"
 if [ -n "$preset_name" ]; then preset_loading=true; fi
@@ -2147,7 +2169,9 @@ run_paginate() {
     fi
 
     paginate_work="$(mktemp -d "$tmpdir/paginate.XXXXXX")"
+    progress_start "Preparing screenshot"
     prepared="$(prepare_paginate_source "$source" "$paginate_work")" || return 1
+    progress_finish
     dimensions="$(get_pixel_size "$prepared")"
     source_width="${dimensions%%x*}"
     source_height="${dimensions##*x}"
@@ -2304,6 +2328,7 @@ run_paginate() {
     fi
 
     if [ "$header_height" -gt 0 ]; then
+        progress_start "Preparing header labels"
         header_date_label="$paginate_work/header-date.png"
         render_text_label "$created_text" "$header_date_label" "$density" || return 1
         dimensions="$(get_pixel_size "$header_date_label")"
@@ -2327,13 +2352,17 @@ run_paginate() {
                 header_title_label=""
             fi
         fi
+        progress_finish
     fi
 
     slices_dir="$paginate_work/slices"
     mkdir "$slices_dir"
+    progress_start "Creating $page_count page slices"
     write_paginate_slices "$prepared" "$slices_dir" "$source_width" \
         "$source_height" "$slice_height" "$advance" "$page_count" "$page_digits" || return 1
+    progress_finish
 
+    progress_start "Rendering $page_count pages"
     page_number=1
     start=0
     while [ "$page_number" -le "$page_count" ]; do
@@ -2361,16 +2390,23 @@ run_paginate() {
         echo "Pagination generated ${#pages[@]} pages; expected $page_count." >&2
         return 1
     fi
+    progress_finish
+
+    progress_start "Validating rendered pages"
     validate_generated_pages "$canvas_width" "$canvas_height" "${pages[@]}" || return 1
+    progress_finish
 
     if $output_pages_set; then
+        progress_start "Publishing PNG pages"
         mv "$paginate_publish_tmp" "$destination"
         paginate_publish_tmp=""
         all_output_list+=("$destination")
+        progress_finish
         return 0
     fi
 
     log "PDF assembly: ${#pages[@]} page(s) -> $destination"
+    progress_start "Assembling PDF"
     if ! magick "${pages[@]}" -units PixelsPerInch -density "$density" \
         -compress Zip "$candidate"; then
         echo "ImageMagick PDF writing is unavailable. Use --output-pages as a PNG fallback." >&2
@@ -2379,6 +2415,7 @@ run_paginate() {
     validate_paginated_pdf "$candidate" "$page_count" "$paper_width" "$paper_height" || return 1
     mv -f "$candidate" "$destination"
     all_output_list+=("$destination")
+    progress_finish
 }
 
 # Populates the global 'montage_files' array from the global 'source_files'
@@ -2459,6 +2496,14 @@ run_montage_and_finalize() {
     done
 }
 
+if $verbose || { [ -t 2 ] && [ "${TERM:-}" != "dumb" ]; }; then
+    if ! command -v perl >/dev/null 2>&1 || \
+        ! perl -MTime::HiRes=clock_gettime,CLOCK_MONOTONIC -e 'exit 0' >/dev/null 2>&1; then
+        echo "Stage timing requires Perl with Time::HiRes and CLOCK_MONOTONIC." >&2
+        exit 1
+    fi
+fi
+
 all_output_list=()
 tmpdir="$(mktemp -d /tmp/screenshots.XXXXXX)"
 out_tmpdir="$(mktemp -d /tmp/screenshots.out.XXXXXX)"
@@ -2496,6 +2541,7 @@ elif $zip_mode; then
     zip_counts=()
     offset=0
     shopt -s nullglob
+    progress_start "Matching and sorting input sets"
     for idx in "${!input_patterns[@]}"; do
         pattern="${input_patterns[$idx]}"
         matched=( $pattern )
@@ -2529,6 +2575,7 @@ elif $zip_mode; then
         exit 1
     fi
     zip_m=${zip_counts[0]}
+    progress_finish
     log "Zip mode: $zip_n input list(s), $zip_m montage(s) to produce"
 
     tile_cols="${tile%x*}"
@@ -2552,6 +2599,7 @@ elif $zip_mode; then
     log "Zip output folder: $zip_out_dir"
 
     j=0
+    progress_start "Creating $zip_m comparison montages"
     while [ "$j" -lt "$zip_m" ]; do
         source_files=()
         for idx in "${!input_patterns[@]}"; do
@@ -2563,6 +2611,7 @@ elif $zip_mode; then
         run_montage_and_finalize
         j=$((j + 1))
     done
+    progress_finish
 elif $each_mode; then
     shopt -s nullglob
     files=( ${input_patterns[0]} )
@@ -2574,6 +2623,7 @@ elif $each_mode; then
     fi
     log "Inputs: ${#files[@]} file(s) from pattern '${input_patterns[0]}'"
 
+    progress_start "Processing ${#files[@]} images"
     if $output_set; then
         out_parent_dir="$output_file"
     else
@@ -2620,6 +2670,7 @@ elif $each_mode; then
         mv -f "$tmp_dst" "$dst"
         all_output_list+=("$dst")
     done
+    progress_finish
 else
     shopt -s nullglob
     files=( ${input_patterns[0]} )
@@ -2679,13 +2730,25 @@ else
     tile="${tile_cols}x${tile_rows}"
 
     source_files=("${filtered_files[@]}")
-    build_montage_inputs
+    if $crop_needed || [ -n "$resize_arg" ]; then
+        progress_start "Preparing ${#source_files[@]} montage inputs"
+        build_montage_inputs
+        progress_finish
+    else
+        build_montage_inputs
+    fi
+    progress_start "Creating montage"
     run_montage_and_finalize
+    progress_finish
 fi
 
 if [ ${#all_output_list[@]} -eq 0 ]; then
     echo "No output files were created." >&2
     exit 1
+fi
+
+if $do_trim || $do_shadow || { $do_border && $each_mode; }; then
+    progress_start "Applying final image effects"
 fi
 
 if $do_trim; then
@@ -2716,6 +2779,10 @@ if $do_shadow; then
     done
 else
     log "Shadow: skipped"
+fi
+
+if $do_trim || $do_shadow || { $do_border && $each_mode; }; then
+    progress_finish
 fi
 
 report_outputs

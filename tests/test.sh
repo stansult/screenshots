@@ -346,12 +346,149 @@ test_operational_timestamps() {
     case_dir_physical="$(cd "$CASE_DIR" && pwd -P)"
     grep -Fxq "$case_dir_physical/result.png" "$CASE_DIR/stdout" || \
         fail 'output path continuation was not preserved' || return 1
+    if grep -Fq $'\033[' "$CASE_DIR/stdout" "$CASE_DIR/stderr"; then
+        fail 'redirected normal output contains terminal control codes'
+    fi
 
     run_script -h
     assert_status 0 || return 1
     if grep -Eq '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}\]$|^\[[0-9]{2}:[0-9]{2}:[0-9]{2}\]' \
         "$CASE_DIR/stdout"; then
         fail 'help output was timestamped'
+    fi
+
+}
+
+test_progress_helper() {
+    bash "$SCRIPT_DIR/tests/progress_helper.test.sh"
+}
+
+test_progress_verbose_integration() {
+    new_case
+    make_image "$CASE_DIR/a.png" 100x80 red
+    run_script -i a.png -o plain.png --no-trim -O
+    assert_status 0 || return 1
+    run_script -i a.png -o result.png --no-trim -O -v
+    assert_status 0 || return 1
+    assert_dimensions "$CASE_DIR/plain.png" 130x110 || return 1
+    assert_dimensions "$CASE_DIR/result.png" 130x110 || return 1
+    assert_pixel_rgb "$CASE_DIR/plain.png" 65,55 '255,0,0' || return 1
+    assert_pixel_rgb "$CASE_DIR/result.png" 65,55 '255,0,0' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage started: Creating montage' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage complete: Creating montage' || return 1
+    if grep -Fq $'\033[' "$CASE_DIR/stdout" "$CASE_DIR/stderr"; then
+        fail 'verbose redirected output contains terminal control codes'
+    fi
+}
+
+test_progress_verbose_all_modes() {
+    new_case
+    make_image "$CASE_DIR/left/a.png" 100x100 red
+    make_image "$CASE_DIR/right/a.png" 100x100 blue
+
+    run_script -i 'left/*.png' -i 'right/*.png' -o zipped -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage started: Matching and sorting input sets' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage complete: Matching and sorting input sets' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage started: Creating 1 comparison montages' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage complete: Creating 1 comparison montages' || return 1
+
+    run_script -i 'left/*.png' --each -o each-output --width 80 -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage started: Processing 1 images' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage complete: Processing 1 images' || return 1
+
+    run_script -i left/a.png --paginate --output-pages -o page-output -v
+    assert_status 0 || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage started: Preparing screenshot' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage complete: Preparing screenshot' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage started: Rendering 1 pages' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage complete: Rendering 1 pages' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage started: Publishing PNG pages' || return 1
+    assert_contains "$CASE_DIR/stderr" 'Stage complete: Publishing PNG pages' || return 1
+}
+
+test_progress_interactive_spinner() {
+    local fake_bin capture unique_start_times process_info screenshot_pid montage_pid
+    local terminal_runner interrupt_runner
+    local script_pid status poll_count
+    command -v script >/dev/null 2>&1 || return 77
+    new_case
+    make_image "$CASE_DIR/a.png" 100x80 red
+    fake_bin="$CASE_DIR/bin"
+    mkdir "$fake_bin"
+    # This block writes a fake command whose variables expand when it runs.
+    # shellcheck disable=SC2016
+    {
+        printf '#!/bin/bash\n'
+        printf 'if [ -n "${FAKE_PROCESS_INFO:-}" ]; then\n'
+        printf '  printf "%%s %%s\\n" "$PPID" "$$" >"$FAKE_PROCESS_INFO"\n'
+        printf '  child=\n'
+        printf '  trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true; exit 143'\'' TERM INT\n'
+        printf '  while :; do sleep 5 & child=$!; wait "$child"; done\n'
+        printf 'fi\n'
+        printf 'sleep 5.3\n'
+        printf 'exec %q "$@"\n' "$REAL_MONTAGE"
+    } >"$fake_bin/montage"
+    chmod +x "$fake_bin/montage"
+    terminal_runner="$CASE_DIR/run-terminal.sh"
+    {
+        printf '#!/bin/bash\n'
+        printf 'cd %q || exit 1\n' "$CASE_DIR"
+        printf 'exec %q -i a.png -o result.png --no-trim -O\n' "$SCRIPT"
+    } >"$terminal_runner"
+    chmod +x "$terminal_runner"
+    capture="$CASE_DIR/terminal.log"
+    TERM=xterm-256color PATH="$fake_bin:$PATH" \
+        script -q "$capture" "$terminal_runner" \
+        >"$CASE_DIR/script.stdout" 2>"$CASE_DIR/script.stderr"
+    RUN_STATUS=$?
+    if [ "$RUN_STATUS" -ne 0 ]; then
+        cat "$CASE_DIR/script.stderr" "$capture" >&2
+        fail 'interactive progress command failed' || return 1
+    fi
+    assert_file "$CASE_DIR/result.png" || return 1
+    grep -Fq $'\033[K' "$capture" || fail 'interactive progress did not use terminal line control' || return 1
+    grep -Fq 'elapsed 5s' "$capture" || fail 'interactive progress omitted elapsed seconds after five seconds' || return 1
+    grep -Fq 'Creating montage complete' "$capture" || fail 'interactive progress did not show stage completion' || return 1
+    unique_start_times="$(perl -ne 'while (m{\[([0-9]{2}:[0-9]{2}:[0-9]{2})\] Creating montage [|/\-]}g) { $seen{$1}=1 } END { print scalar keys %seen }' "$capture")"
+    [ "$unique_start_times" = 1 ] || fail 'live progress did not keep one fixed start timestamp' || return 1
+
+    process_info="$CASE_DIR/process-info"
+    capture="$CASE_DIR/interrupted-terminal.log"
+    interrupt_runner="$CASE_DIR/run-interrupted.sh"
+    {
+        printf '#!/bin/bash\n'
+        printf 'cd %q || exit 1\n' "$CASE_DIR"
+        printf 'exec %q -i a.png -o interrupted.png --no-trim -O\n' "$SCRIPT"
+    } >"$interrupt_runner"
+    chmod +x "$interrupt_runner"
+    FAKE_PROCESS_INFO="$process_info" TERM=xterm-256color PATH="$fake_bin:$PATH" \
+        script -q "$capture" "$interrupt_runner" \
+        >"$CASE_DIR/interrupted.stdout" 2>"$CASE_DIR/interrupted.stderr" &
+    script_pid=$!
+    poll_count=0
+    while [ ! -s "$process_info" ] && [ "$poll_count" -lt 100 ]; do
+        sleep 0.1
+        poll_count=$((poll_count + 1))
+    done
+    if [ ! -s "$process_info" ]; then
+        kill -TERM "$script_pid" 2>/dev/null || true
+        wait "$script_pid" 2>/dev/null || true
+        fail 'interruption fixture did not reach the montage stage' || return 1
+    fi
+    read -r screenshot_pid montage_pid <"$process_info"
+    kill -TERM "$screenshot_pid" 2>/dev/null || true
+    kill -TERM "$montage_pid" 2>/dev/null || true
+    if wait "$script_pid"; then
+        status=0
+    else
+        status=$?
+    fi
+    [ "$status" -ne 0 ] || fail 'terminated screenshot command unexpectedly succeeded' || return 1
+    grep -Fq $'\033[K' "$capture" || fail 'interruption did not clear the live progress line' || return 1
+    if grep -Fq 'Creating montage complete' "$capture"; then
+        fail 'interrupted stage was incorrectly reported as complete'
     fi
 }
 
@@ -688,6 +825,7 @@ test_presets_load_from_adjacent_config() {
     configured_config="$CASE_DIR/presets.conf"
     cp "$SCRIPT" "$configured_script"
     cp "$SCRIPT_DIR/presets.conf" "$configured_config"
+    cp "$SCRIPT_DIR/progress.sh" "$CASE_DIR/progress.sh"
     {
         printf '\n[smoke-page]\n'
         printf '%s\n' '--paginate' '--header' '--overlap=17' '--title=QA {stem} copy'
@@ -1322,6 +1460,10 @@ run_test() {
             passed=$((passed + 1))
             echo 'PASS'
             ;;
+        77)
+            skipped=$((skipped + 1))
+            echo 'SKIP'
+            ;;
         *)
             failed=$((failed + 1))
             echo 'FAIL'
@@ -1357,6 +1499,10 @@ run_test 'invalid arguments are rejected' test_argument_validation
 run_test 'general help is concise and complete' test_general_help
 run_test 'preset help is complete and consistent' test_presets_help
 run_test 'operational output is timestamped' test_operational_timestamps
+run_test 'progress timing and cleanup' test_progress_helper
+run_test 'verbose mode reports progress stages' test_progress_verbose_integration
+run_test 'verbose stages cover all processing modes' test_progress_verbose_all_modes
+run_test 'interactive spinner and elapsed time' test_progress_interactive_spinner
 run_test 'mode help selects requested page' test_mode_help_pages
 run_test 'invalid help requests are rejected' test_invalid_help_requests
 run_test 'help precedes validation and dependencies' test_help_precedes_validation_and_dependencies

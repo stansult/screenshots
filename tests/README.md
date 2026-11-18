@@ -6,13 +6,14 @@ Run the suite from anywhere in the repository:
 ./tests/test.sh
 ```
 
-The tests require Bash and ImageMagick, just like the main script. They create
-small solid-color PNG fixtures in a temporary directory and remove them when
-the run finishes. No fixture images or output files are stored in the
-repository.
+The tests require Bash and ImageMagick, plus Perl with `Time::HiRes` for
+monotonic timing coverage. They create small solid-color PNG fixtures in a
+temporary directory and remove them when the run finishes. No fixture images
+or output files are stored in the repository.
 
 The suite checks montage, crop, resize, each, zip, pagination, presets,
-operational timestamps, output-exclusion, argument-validation, and
+operational timestamps, progress thresholds, monotonic durations, interactive
+terminal output and cleanup, output-exclusion, argument-validation, and
 font-discovery behavior. Pagination
 coverage includes PDF and PNG output, paper dimensions, uniform and asymmetric
 margins, overlap,
